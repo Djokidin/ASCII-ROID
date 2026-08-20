@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ascii-roid — ASCII Camera</title>
+  <meta name="description" content="Kamera ASCII dari quotes kehidupan — Bahasa Indonesia & English." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=VT323&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=2" />
+</head>
+
+<body>
+
+  <!-- ── HIDDEN CAMERA ELEMENTS ── -->
+  <div style="display: none;">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="captureCanvas"></canvas>
+    <div id="cameraOff"></div>
+    <div id="liveBadge"></div>
+  </div>
+
+  <!-- ── ASCII OUTPUT — PORTRAIT 4:3 ── -->
+  <main class="ascii-stage">
+    <div class="ascii-frame">
+      <canvas id="bgVideoCanvas" class="bg-video"></canvas>
+      <div id="asciiText" class="ascii-out"></div>
+      <div id="overlayMsg" class="overlay">
+        <div class="overlay-content">
+          <p class="overlay-title">ASCII-ROID</p>
+          <p class="overlay-hint">[ START ] kamera untuk memulai</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── BOTTOM BAR ── -->
+  <footer class="bottombar">
+    <span class="logo">ASCII-ROID</span>
+
+    <div class="ctrl-pill">
+      <div class="ctrl-row">
+        <button id="btnCamera" class="btn-cam">[ START ]</button>
+        <button id="btnFlip" class="btn-mono" title="Mirror">⇄</button>
+        <div class="ctrl-sep"></div>
+        <label class="ctrl-label" for="selLang">LANG</label>
+        <select id="selLang" class="ctrl-select">
+          <option value="both">ID + EN</option>
+          <option value="id">ID</option>
+          <option value="en">EN</option>
+        </select>
+        <div class="ctrl-sep"></div>
+        <button id="btnBgCam" class="btn-mono" title="Background Camera">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
+        <button id="btnInvert" class="btn-mono" title="Invert ASCII">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 2a10 10 0 0 0 0 20z"></path>
+          </svg>
+        </button>
+        <div class="ctrl-sep"></div>
+        <button id="btnSnapshot" class="btn-mono" title="Snapshot">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+            <circle cx="12" cy="13" r="3"></circle>
+          </svg>
+        </button>
+        <button id="btnDownload" class="btn-mono" title="Download">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>
+        <button id="btnPrint" class="btn-mono" title="Print Receipt">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 6 2 18 2 18 9"></polyline>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+            <rect x="6" y="14" width="12" height="8"></rect>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ── SNAPSHOT LIGHTBOX ── -->
+  <div id="lightbox" class="lightbox" hidden>
+    <div class="lb-backdrop" id="lightboxBg"></div>
+    <div class="lb-box">
+      <button class="lb-close" id="lightboxClose">✕ TUTUP</button>
+      <div id="printContainer" class="print-container">
+        <canvas id="lightboxCanvas"></canvas>
+      </div>
+      <p class="lb-hint">Double-click gambar untuk unduh</p>
+    </div>
+  </div>
+
+  <!-- ── TOAST ── -->
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

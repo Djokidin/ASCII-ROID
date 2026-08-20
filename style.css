@@ -1,0 +1,512 @@
+/* =============================================
+   DITHEROID — ASCII Camera
+   style.css  ·  Brutalist / Editorial
+   ============================================= */
+
+/* ----- Reset ----- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: 'Space Grotesk', sans-serif;
+  background: #ffffff;
+  color: #1A1A1A;
+  overflow: hidden;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+}
+
+input,
+select {
+  font-family: inherit;
+}
+
+video {
+  display: block;
+}
+
+/* ── BOTTOM BAR ── */
+.bottombar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 90vw;
+  max-width: calc(85vh * 0.75);
+  z-index: 100;
+}
+
+.logo {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #1A1A1A;
+}
+
+/* Camera thumbnail */
+.cam-thumb {
+  position: relative;
+  width: 60px;
+  height: 40px;
+  flex-shrink: 0;
+  background: #1A1A1A;
+  border: 1px solid #1A1A1A;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cam-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.9;
+}
+
+.cam-off-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.8);
+  background: #1A1A1A;
+}
+
+.cam-off-label.hidden {
+  display: none;
+}
+
+.live-badge {
+  position: absolute;
+  bottom: 3px;
+  right: 4px;
+  font-size: 7px;
+  font-weight: 700;
+  color: #ff3b30;
+  letter-spacing: 0.05em;
+  display: none;
+  animation: recBlink 1.2s step-end infinite;
+}
+
+.live-badge.visible {
+  display: block;
+}
+
+@keyframes recBlink {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Right controls */
+
+.ctrl-pill {
+  border: 1px solid #1A1A1A;
+  border-radius: 999px;
+  padding: 4px 6px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+}
+
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+}
+
+/* Camera button */
+.btn-cam {
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: #1A1A1A;
+  background: transparent;
+  border: 1px solid #1A1A1A;
+  border-radius: 99px;
+  white-space: nowrap;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-cam:hover {
+  background: rgba(26, 26, 26, 0.05);
+}
+
+.btn-cam.active {
+  background: #1A1A1A;
+  color: #E9EBE2;
+}
+
+.btn-cam.active:hover {
+  opacity: 0.9;
+}
+
+/* Mono icon buttons */
+.btn-mono {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #1A1A1A;
+  background: transparent;
+  border: 1px solid #1A1A1A;
+  border-radius: 50%;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-mono:hover {
+  background: rgba(26, 26, 26, 0.05);
+}
+
+/* Separator */
+.ctrl-sep {
+  width: 1px;
+  height: 16px;
+  background: #1A1A1A;
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+/* Labels */
+.ctrl-label {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: #1A1A1A;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Select */
+.ctrl-select {
+  padding: 4px 6px;
+  font-size: 9px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  background: transparent;
+  border: 1px solid #1A1A1A;
+  border-radius: 99px;
+  color: #1A1A1A;
+  outline: none;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 18px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath fill='%231A1A1A' d='M4 5L0 0h8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 5px center;
+  cursor: pointer;
+}
+
+.ctrl-select option {
+  background: #E9EBE2;
+  color: #1A1A1A;
+}
+
+/* ── ASCII STAGE ── */
+.ascii-stage {
+  position: fixed;
+  top: 0;
+  bottom: 80px;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Portrait 4:3 frame — the actual output area */
+.ascii-frame {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  max-height: 85%;
+  max-width: 90%;
+  height: 100%;
+  background: #fff;
+  border: 1px solid #1A1A1A;
+  border-radius: 20px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: none;
+}
+
+.ascii-out {
+  position: absolute;
+  inset: 0;
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: pre;
+  overflow: hidden;
+  color: #ffffff; /* White text for difference blending */
+  mix-blend-mode: difference; /* Inverts against background */
+  background: transparent; /* Always transparent so we blend with frame/video */
+  padding: 0;
+  text-transform: uppercase;
+}
+
+/* No longer needed since we always use transparent background */
+
+.bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  background: #fff;
+  image-rendering: pixelated;
+}
+
+.bg-video.show {
+  opacity: 1;
+}
+
+/* Overlay (idle state) */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  pointer-events: none;
+  border-radius: 20px;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay-content {
+  text-align: center;
+}
+
+.overlay-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 28px;
+  font-weight: 500;
+  color: #1A1A1A;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 14px;
+}
+
+.overlay-hint {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px;
+  color: #666;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ── LIGHTBOX ── */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox[hidden] {
+  display: none;
+}
+
+.lb-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  cursor: pointer;
+}
+
+.lb-box {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 92vw;
+}
+
+#lightboxCanvas {
+  max-width: 100%;
+  max-height: 82svh;
+  display: block;
+  border: 1px solid #1A1A1A;
+  border-radius: 12px;
+  cursor: zoom-in;
+}
+
+.lb-close {
+  align-self: flex-end;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  padding: 6px 16px;
+  background: transparent;
+  color: #E9EBE2;
+  border: 1px solid #E9EBE2;
+  border-radius: 99px;
+  transition: opacity 0.15s;
+}
+
+.lb-close:hover {
+  opacity: 0.8;
+}
+
+.lb-hint {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px;
+  color: rgba(233, 235, 226, 0.6);
+  letter-spacing: 0.08em;
+}
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  z-index: 300;
+  padding: 8px 20px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  background: #1A1A1A;
+  color: #E9EBE2;
+  border-radius: 99px;
+  box-shadow: 0 4px 12px rgba(26, 26, 26, 0.1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  white-space: nowrap;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── RESPONSIVE RESPONSIVENESS ── */
+@media (max-width: 768px) {
+  .bottombar {
+    width: 95vw;
+    max-width: 95vw;
+    bottom: 16px;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .ascii-stage {
+    bottom: 120px;
+  }
+  .ctrl-pill {
+    width: 100%;
+    justify-content: center;
+  }
+  .ctrl-row {
+    width: 100%;
+    justify-content: space-between;
+    gap: 2px;
+  }
+  .btn-cam {
+    padding: 6px 12px;
+  }
+  .btn-mono {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* ── PRINT (RECEIPT PRINTER) ── */
+@media print {
+  @page {
+    margin: 0;
+  }
+
+  body {
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+
+  .bottombar,
+  .ascii-stage,
+  .footer,
+  .lb-close,
+  .lb-hint,
+  #toast {
+    display: none !important;
+  }
+
+  .lightbox {
+    position: static;
+    display: block !important;
+    background: #fff;
+  }
+
+  .lb-backdrop {
+    display: none !important;
+  }
+
+  .lb-box {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    align-items: center;
+  }
+
+  .print-container {
+    width: 100%;
+    max-width: 576px; /* standard 80mm receipt printer width */
+  }
+
+  #lightboxCanvas {
+    width: 100%;
+    height: auto;
+    border: none;
+    box-shadow: none;
+    margin: 0;
+    display: block;
+    image-rendering: pixelated;
+  }
+}
