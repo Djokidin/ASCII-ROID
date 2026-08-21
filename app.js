@@ -250,31 +250,43 @@ let currentDeviceIdx = 0;
 async function startCamera() {
   try {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    // On Android, explicitly setting exact facingMode is sometimes the only way to force it,
-    // but if it fails we fallback to ideal.
-    let videoConstraint = { facingMode: state.facingMode };
-    if (isMobile) {
-      videoConstraint = { facingMode: { ideal: state.facingMode } };
-    }
 
-    // Stop existing stream first to release camera lock (important for Android)
+    // Stop stream lama dulu agar kamera Android tidak lock
     if (state.stream) {
       state.stream.getTracks().forEach(t => t.stop());
       state.stream = null;
+      video.srcObject = null;
     }
 
-    state.stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint });
-    video.srcObject = state.stream;
-    await new Promise(r => (video.onloadedmetadata = r));
-    await video.play();
+    // Android: coba 'exact' dulu (paksa ganti kamera), jika gagal fallback ke 'ideal'
+    let videoConstraint;
+    if (isMobile) {
+      try {
+        videoConstraint = { facingMode: { exact: state.facingMode } };
+        state.stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint });
+      } catch (_) {
+        // exact gagal (misal hanya 1 kamera), fallback ke ideal
+        videoConstraint = { facingMode: { ideal: state.facingMode } };
+        state.stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint });
+      }
+    } else {
+      videoConstraint = { facingMode: state.facingMode };
+      state.stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint });
+    }
 
-    // Show switch camera button if there's more than 1 camera
+    video.srcObject = state.stream;
+    // Tunggu metadata & video benar-benar siap
+    await new Promise(r => { video.onloadedmetadata = r; });
+    await video.play();
+    // Ekstra tunggu 1 frame agar videoWidth/videoHeight terisi (penting di Android)
+    await new Promise(r => requestAnimationFrame(r));
+
+    // Tampilkan tombol switch kamera jika ada lebih dari 1 kamera
     if (isMobile) {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoInputs = devices.filter(d => d.kind === 'videoinput');
-      if (videoInputs.length > 1 && btnSwitchCam) {
-         btnSwitchCam.style.display = 'inline-flex';
+      if (btnSwitchCam) {
+        btnSwitchCam.style.display = videoInputs.length > 1 ? 'inline-flex' : 'none';
       }
     }
 
@@ -292,10 +304,12 @@ async function startCamera() {
     state.animId = requestAnimationFrame(renderFrame);
     showToast('KAMERA AKTIF');
   } catch (err) {
+    console.error('Camera error:', err);
     let msg = 'TIDAK BISA AKSES KAMERA';
-    if (err.name === 'NotAllowedError') msg = 'IZIN KAMERA DITOLAK';
-    if (err.name === 'NotFoundError') msg = 'KAMERA TIDAK DITEMUKAN';
+    if (err.name === 'NotAllowedError')  msg = 'IZIN KAMERA DITOLAK';
+    if (err.name === 'NotFoundError')    msg = 'KAMERA TIDAK DITEMUKAN';
     if (err.name === 'NotReadableError') msg = 'KAMERA DIPAKAI APLIKASI LAIN';
+    if (err.name === 'OverconstrainedError') msg = 'KAMERA TIDAK MENDUKUNG MODE INI';
     showToast(msg);
   }
 }
@@ -314,30 +328,98 @@ function stopCamera() {
   showToast('KAMERA MATI');
 }
 
-/* ── SNAPSHOT / DOWNLOAD ── */
-function textToCanvas(target, format = 'story') {
-  const text = asciiText.textContent;
-  if (!text || !text.trim()) return false;
-  const lines = text.split('\n');
-  if (!lines.length) return false;
+/* ════════════════════════════════════════════════════════
+   EXPORT ENGINE — selalu re-render dari kamera dengan
+   densitas karakter tetap (EXPORT_CHAR_W / EXPORT_LINE_H)
+   sehingga kualitas PC == Android == iOS.
+   ════════════════════════════════════════════════════════ */
 
-  // BUG FIX: Ambil nilai font yang benar saat fungsi dipanggil
-  const FONT_SIZE = getFontSize();
-  const CHAR_W    = getCharW();
-  const LINE_H    = getLineH();
+// Konstanta ekspor: gunakan font kecil (setara mobile) agar
+// paling banyak karakter → paling detail di semua platform.
+const EXPORT_FONT_SIZE = 10;   // px di canvas output
+const EXPORT_CHAR_W    = 4.0;  // VT323 advance-width pada 10px
+const EXPORT_LINE_H    = 10;   // = EXPORT_FONT_SIZE (line-height 1.0)
 
-  const cols = lines[0].length;
-  const rows = lines.length;
+/**
+ * Re-render ulang frame kamera langsung ke canvas target
+ * dengan kepadatan EXPORT_CHAR_W × EXPORT_LINE_H, terlepas
+ * dari ukuran font yang sedang dipakai di layar.
+ */
+function renderToCanvas(target, format = 'story') {
+  // Pastikan kamera aktif
+  if (!state.running || !video.videoWidth || !video.videoHeight) return false;
 
-  // Hitung dimensi canvas output dengan font yang benar
-  const SCALE = 3; // 3x scale for very crisp printing
-  const cw = Math.round(cols * CHAR_W * SCALE);
-  const ch = Math.round(rows * LINE_H * SCALE);
+  const frameW = asciiFrame ? asciiFrame.offsetWidth  : 340;
+  const frameH = asciiFrame ? asciiFrame.offsetHeight : 453;
 
-  const PADDING      = 20  * SCALE;
-  const INNER_PAD    = 16  * SCALE;
+  // Jumlah kolom & baris berdasarkan ukuran frame LAYAR (bukan layar kecil/besar)
+  // tapi dengan EXPORT_CHAR_W yang kecil → selalu densitas tinggi
+  const cols = Math.floor(frameW / EXPORT_CHAR_W);
+  const rows = Math.floor(frameH / EXPORT_LINE_H);
+
+  // ── Re-sample kamera pada resolusi ekspor ──────────────
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+
+  const frameAspect = frameW / frameH;
+  let sx, sy, sw, sh;
+  if ((vw / vh) > frameAspect) {
+    sh = vh; sw = vh * frameAspect; sx = (vw - sw) / 2; sy = 0;
+  } else {
+    sw = vw; sh = vw / frameAspect; sx = 0; sy = (vh - sh) / 2;
+  }
+
+  const expCanvas = document.createElement('canvas');
+  expCanvas.width  = cols;
+  expCanvas.height = rows;
+  const expCtx = expCanvas.getContext('2d', { willReadFrequently: true });
+
+  expCtx.save();
+  if (state.mirrored) { expCtx.translate(cols, 0); expCtx.scale(-1, 1); }
+  expCtx.filter = `contrast(${state.contrast}) brightness(1.05)`;
+  expCtx.drawImage(video, sx, sy, sw, sh, 0, 0, cols, rows);
+  expCtx.restore();
+
+  const { data } = expCtx.getImageData(0, 0, cols, rows);
+
+  // ── ASCII mapping (sama dengan renderFrame) ────────────
+  const T_SPACE = 80;
+  const T_DOT   = 148;
+
+  if (!sequentialText) buildPool();
+  let localIdx = 0;
+
+  const lines = [];
+  for (let r = 0; r < rows; r++) {
+    let line = '';
+    for (let c = 0; c < cols; c++) {
+      const i    = (r * cols + c) * 4;
+      const luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      const m    = state.invertAscii ? luma : 255 - luma;
+      if (m < T_SPACE) {
+        line += ' ';
+      } else if (m < T_DOT) {
+        line += '.';
+      } else {
+        line += sequentialText[localIdx % sequentialText.length];
+        localIdx++;
+      }
+    }
+    lines.push(line);
+  }
+
+  // ── Dimensi canvas output ──────────────────────────────
+  const SCALE       = 3;   // 3× untuk ketajaman cetak
+  const FONT_SIZE   = EXPORT_FONT_SIZE;
+  const CHAR_W      = EXPORT_CHAR_W;
+  const LINE_H      = EXPORT_LINE_H;
+
+  const PADDING       = 20  * SCALE;
+  const INNER_PAD     = 16  * SCALE;
   const FOOTER_HEIGHT = 280 * SCALE;
 
+  const cw     = Math.round(cols * CHAR_W  * SCALE);
+  const ch     = Math.round(rows * LINE_H  * SCALE);
   const cw_box = cw + INNER_PAD * 2;
   const ch_box = ch + INNER_PAD * 2;
 
@@ -348,7 +430,6 @@ function textToCanvas(target, format = 'story') {
   let finalHeight = contentHeight;
   let offsetY     = 0;
 
-  // 'story' = 9:16, 'receipt' atau lainnya = tinggi natural
   if (format === 'story') {
     finalHeight = Math.round(finalWidth * (16 / 9));
     offsetY     = Math.round((finalHeight - contentHeight) / 2);
@@ -367,6 +448,7 @@ function textToCanvas(target, format = 'story') {
   ctx.save();
   ctx.translate(0, offsetY);
 
+  // Background camera dither (jika aktif)
   if (state.showBgCam && bgVideoCanvas) {
     ctx.save();
     ctx.globalAlpha = 1;
@@ -385,8 +467,8 @@ function textToCanvas(target, format = 'story') {
   // ASCII Text
   if (state.showText) {
     ctx.globalCompositeOperation = 'difference';
-    ctx.fillStyle   = '#ffffff';
-    ctx.font        = `${FONT_SIZE * SCALE}px 'VT323', monospace`;
+    ctx.fillStyle    = '#ffffff';
+    ctx.font         = `${FONT_SIZE * SCALE}px 'VT323', monospace`;
     ctx.textBaseline = 'top';
     lines.forEach((line, i) =>
       ctx.fillText(line, PADDING + INNER_PAD, PADDING + INNER_PAD + i * LINE_H * SCALE)
@@ -407,9 +489,9 @@ function textToCanvas(target, format = 'story') {
     '100% LO-RES DEFINITION',
     'WARNING: WILL FADE EVENTUALLY'
   ];
-  const randomWord  = words[Math.floor(Math.random() * words.length)];
-  const today       = new Date();
-  const dateString  = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const randomWord = words[Math.floor(Math.random() * words.length)];
+  const today      = new Date();
+  const dateString = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
   ctx.fillText(randomWord, PADDING, footerY + 45 * SCALE, cw_box);
 
   ctx.font = `500 ${20 * SCALE}px 'Space Grotesk', sans-serif`;
@@ -437,60 +519,67 @@ function textToCanvas(target, format = 'story') {
   return true;
 }
 
+// Alias untuk kompatibilitas: semua pemanggil lama tetap berfungsi
+function textToCanvas(target, format = 'story') {
+  return renderToCanvas(target, format);
+}
+
 let currentShareFile = null;
 
 function takeSnapshot() {
-  if (!state.running || !asciiText.textContent) { showToast('TIDAK ADA FRAME'); return; }
-  // Tunggu font VT323 benar-benar dimuat sebelum menggambar
-  document.fonts.load(`${getFontSize() * 3}px VT323`).then(() => {
-    if (textToCanvas(lightboxCanvas)) {
-      lightbox.removeAttribute('hidden');
-      showToast('SNAPSHOT DIAMBIL');
-      // Reset currentShareFile dulu agar tidak pakai file lama
-      currentShareFile = null;
-      lightboxCanvas.toBlob(blob => {
-        if (blob) {
-          currentShareFile = new File([blob], `ascii_roid_${Date.now()}.png`, { type: 'image/png' });
-        }
-      }, 'image/png');
-    } else {
-      showToast('GAGAL MENGAMBIL SNAPSHOT');
+  // Guard: cek kamera running (bukan teks, karena render langsung dari kamera)
+  if (!state.running) { showToast('KAMERA BELUM AKTIF'); return; }
+  if (!video.videoWidth || !video.videoHeight) { showToast('VIDEO BELUM SIAP'); return; }
+
+  // Jalankan langsung (synchronous dari user gesture — penting untuk Android)
+  const ok = renderToCanvas(lightboxCanvas);
+  if (!ok) { showToast('GAGAL MENGAMBIL SNAPSHOT'); return; }
+
+  lightbox.removeAttribute('hidden');
+  showToast('SNAPSHOT DIAMBIL');
+
+  // Siapkan file share secara async
+  currentShareFile = null;
+  lightboxCanvas.toBlob(blob => {
+    if (blob) {
+      currentShareFile = new File([blob], `ascii_roid_${Date.now()}.png`, { type: 'image/png' });
     }
-  }).catch(() => {
-    // Font gagal dimuat, coba gambar tanpa menunggu
-    if (textToCanvas(lightboxCanvas)) {
-      lightbox.removeAttribute('hidden');
-      showToast('SNAPSHOT DIAMBIL');
-    }
-  });
+  }, 'image/png');
 }
 
-// BUG FIX: iOS Safari tidak mendukung a.click() tanpa elemen di DOM
+// Download: gunakan toDataURL (sync) agar bisa dipanggil dari user gesture di Android/iOS
 function downloadCanvas(canvas) {
-  canvas.toBlob(blob => {
-    if (!blob) { showToast('GAGAL MEMBUAT FILE'); return; }
-    const url = URL.createObjectURL(blob);
-    const a   = document.createElement('a');
-    a.href     = url;
+  try {
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href     = dataUrl;
     a.download = `ascii_roid_${Date.now()}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast('MENGUNDUH...');
-  }, 'image/png');
+  } catch (e) {
+    // Fallback: buka di tab baru (Android WebView / iOS Safari)
+    try {
+      const dataUrl = canvas.toDataURL('image/png');
+      window.open(dataUrl, '_blank');
+      showToast('BUKA TAB BARU UNTUK SIMPAN');
+    } catch (_) {
+      showToast('GAGAL MENGUNDUH');
+    }
+  }
 }
 
 function downloadCurrent() {
-  if (!state.running || !asciiText.textContent) { showToast('TIDAK ADA DATA'); return; }
-  document.fonts.load(`${getFontSize() * 3}px VT323`).then(() => {
-    const tmp = document.createElement('canvas');
-    if (textToCanvas(tmp)) {
-      downloadCanvas(tmp);
-    } else {
-      showToast('TIDAK ADA DATA');
-    }
-  });
+  if (!state.running) { showToast('KAMERA BELUM AKTIF'); return; }
+  if (!video.videoWidth || !video.videoHeight) { showToast('VIDEO BELUM SIAP'); return; }
+  // Render langsung dari kamera saat user gesture (penting Android)
+  const tmp = document.createElement('canvas');
+  if (renderToCanvas(tmp)) {
+    downloadCanvas(tmp);
+  } else {
+    showToast('TIDAK ADA DATA');
+  }
 }
 
 function canvasToEscPos(canvas, printWidth = 384) {
@@ -636,28 +725,26 @@ async function printViaBluetooth(canvas) {
 }
 
 async function printReceipt() {
-  if (!state.running || !asciiText.textContent) { showToast('TIDAK ADA DATA'); return; }
+  if (!state.running) { showToast('KAMERA BELUM AKTIF'); return; }
+  if (!video.videoWidth || !video.videoHeight) { showToast('VIDEO BELUM SIAP'); return; }
 
-  // BUG FIX: format 'receipt' tidak dikenal, gunakan format yang benar ('natural' = tinggi asli)
-  await document.fonts.load(`${getFontSize() * 3}px VT323`);
+  // Render canvas dari kamera (harus di sini, dari user gesture)
+  const tmp = document.createElement('canvas');
+  if (!renderToCanvas(tmp)) { showToast('TIDAK ADA DATA'); return; }
 
-  if (navigator.bluetooth) {
-    const tmp = document.createElement('canvas');
-    // Pakai format default (bukan 'story' bukan 'receipt') agar tinggi natural
-    if (textToCanvas(tmp)) {
-      await printViaBluetooth(tmp);
-    } else {
-      showToast('TIDAK ADA DATA');
-    }
+  // Cek Bluetooth tersedia DAN halaman pakai HTTPS (Android wajib HTTPS untuk BT)
+  const isHttps = location.protocol === 'https:' || location.hostname === 'localhost';
+  if (navigator.bluetooth && isHttps) {
+    await printViaBluetooth(tmp);
   } else {
-    // Fallback: tampilkan di lightbox lalu print
-    if (textToCanvas(lightboxCanvas)) {
-      lightbox.removeAttribute('hidden');
-      showToast('MEMPERSIAPKAN PRINT...');
-      setTimeout(() => window.print(), 500);
-    } else {
-      showToast('TIDAK ADA DATA');
-    }
+    // Fallback: tampilkan di lightbox lalu window.print()
+    // Copy canvas ke lightboxCanvas untuk ditampilkan
+    lightboxCanvas.width  = tmp.width;
+    lightboxCanvas.height = tmp.height;
+    lightboxCanvas.getContext('2d').drawImage(tmp, 0, 0);
+    lightbox.removeAttribute('hidden');
+    showToast('MEMPERSIAPKAN PRINT...');
+    setTimeout(() => window.print(), 600);
   }
 }
 
@@ -677,15 +764,14 @@ if (btnSwitchCam) {
   btnSwitchCam.addEventListener('click', () => {
     state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
     showToast(state.facingMode === 'user' ? 'KAMERA DEPAN' : 'KAMERA BELAKANG');
-    
     if (state.running) {
-      // Stop animasi dan stream dulu
+      // Hentikan render & stream sebelum ganti kamera
       state.running = false;
       if (state.animId) { cancelAnimationFrame(state.animId); state.animId = null; }
       if (state.stream) { state.stream.getTracks().forEach(t => t.stop()); state.stream = null; }
       video.srcObject = null;
-      // Beri waktu cukup untuk Android melepas kamera
-      setTimeout(startCamera, 600);
+      // Beri jeda 800ms agar OS Android benar-benar melepas hardware kamera
+      setTimeout(startCamera, 800);
     }
   });
 }
