@@ -269,8 +269,8 @@ video {
   position: absolute;
   inset: 0;
   font-family: 'VT323', monospace;
-  font-size: 18px;
-  line-height: 18px;
+  font-size: 20px;
+  line-height: 20px;
   letter-spacing: 0;
   white-space: pre;
   overflow: hidden;
@@ -476,10 +476,10 @@ video {
     width: 32px;
     height: 32px;
   }
-  /* ASCII ukuran 18px di mobile (Android & iOS) */
+  /* ASCII ukuran 20px di mobile (Android & iOS) */
   .ascii-out {
-    font-size: 18px;
-    line-height: 18px;
+    font-size: 20px;
+    line-height: 20px;
   }
 }
 

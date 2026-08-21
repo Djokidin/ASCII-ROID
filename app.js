@@ -111,12 +111,12 @@ function isMobileScreen() {
 }
 function getFontSize() {
   // Harus cocok dengan CSS .ascii-out font-size
-  if (isMobileScreen()) return 18;
+  if (isMobileScreen()) return 20;
   return 20;
 }
 function getCharW() {
   // VT323 advance width ratio: ~0.4 × font-size (empiris)
-  if (isMobileScreen()) return 7.2;  // 18 × 0.4
+  if (isMobileScreen()) return 8.0;  // 20 × 0.4
   return 8.0;                         // 20 × 0.4
 }
 function getLineH() {
