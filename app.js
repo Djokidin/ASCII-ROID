@@ -473,33 +473,48 @@ function canvasToEscPos(canvas, printWidth = 384) {
   }
   
   const widthInBytes = Math.ceil(printWidth / 8);
-  const dataLen = widthInBytes * printHeight;
+  const BAND_HEIGHT = 64; // Small chunks (3KB max) to prevent printer buffer overflow
+  const numBands = Math.ceil(printHeight / BAND_HEIGHT);
   
-  const buffer = new Uint8Array(8 + dataLen + 3);
-  buffer.set([0x1D, 0x76, 0x30, 0x00], 0);
-  buffer[4] = widthInBytes & 0xFF;
-  buffer[5] = (widthInBytes >> 8) & 0xFF;
-  buffer[6] = printHeight & 0xFF;
-  buffer[7] = (printHeight >> 8) & 0xFF;
+  const buffers = [];
   
-  let offset = 8;
-  for (let y = 0; y < printHeight; y++) {
-    for (let xByte = 0; xByte < widthInBytes; xByte++) {
-      let byte = 0;
-      for (let bit = 0; bit < 8; bit++) {
-        const x = xByte * 8 + bit;
-        if (x < printWidth) {
-           if (lumaArray[y * printWidth + x] < 128) {
-             byte |= (1 << (7 - bit));
-           }
+  // INIT PRINTER (Reset)
+  buffers.push(new Uint8Array([0x1B, 0x40]));
+  
+  for (let b = 0; b < numBands; b++) {
+    const bandStartY = b * BAND_HEIGHT;
+    const bandHeight = Math.min(BAND_HEIGHT, printHeight - bandStartY);
+    const dataLen = widthInBytes * bandHeight;
+    
+    const buffer = new Uint8Array(8 + dataLen);
+    buffer.set([0x1D, 0x76, 0x30, 0x00], 0); // GS v 0
+    buffer[4] = widthInBytes & 0xFF;
+    buffer[5] = (widthInBytes >> 8) & 0xFF;
+    buffer[6] = bandHeight & 0xFF;
+    buffer[7] = (bandHeight >> 8) & 0xFF;
+    
+    let offset = 8;
+    for (let y = 0; y < bandHeight; y++) {
+      const globalY = bandStartY + y;
+      for (let xByte = 0; xByte < widthInBytes; xByte++) {
+        let byte = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const x = xByte * 8 + bit;
+          if (x < printWidth) {
+             if (lumaArray[globalY * printWidth + x] < 128) {
+               byte |= (1 << (7 - bit));
+             }
+          }
         }
+        buffer[offset++] = byte;
       }
-      buffer[offset++] = byte;
     }
+    buffers.push(buffer);
   }
   
-  buffer.set([0x1B, 0x64, 0x03], offset);
-  return buffer;
+  // Cut or feed paper
+  buffers.push(new Uint8Array([0x1B, 0x64, 0x03]));
+  return buffers;
 }
 
 const PRINTER_SERVICES = [
@@ -540,19 +555,25 @@ async function printViaBluetooth(canvas) {
     }
     
     showToast('MEMPROSES GAMBAR...');
-    const buffer = canvasToEscPos(canvas, 384);
+    const bands = canvasToEscPos(canvas, 384);
     
     showToast('MENCETAK...');
-    const CHUNK_SIZE = 40; // Reduced to 40 bytes to ensure safe BLE MTU size
-    for (let i = 0; i < buffer.length; i += CHUNK_SIZE) {
-      const chunk = buffer.slice(i, i + CHUNK_SIZE);
-      if (writeChar.properties.write) {
-         await writeChar.writeValue(chunk);
-         await new Promise(r => setTimeout(r, 5)); 
-      } else {
-         await writeChar.writeValueWithoutResponse(chunk);
-         await new Promise(r => setTimeout(r, 20)); 
+    const CHUNK_SIZE = 100;
+    
+    for (let b = 0; b < bands.length; b++) {
+      const buffer = bands[b];
+      for (let i = 0; i < buffer.length; i += CHUNK_SIZE) {
+        const chunk = buffer.slice(i, i + CHUNK_SIZE);
+        if (writeChar.properties.write) {
+           await writeChar.writeValue(chunk);
+           await new Promise(r => setTimeout(r, 5)); 
+        } else {
+           await writeChar.writeValueWithoutResponse(chunk);
+           await new Promise(r => setTimeout(r, 20)); 
+        }
       }
+      // Give printer time to empty its buffer and physically print the band
+      await new Promise(r => setTimeout(r, 150)); 
     }
     
     showToast('CETAK SELESAI');
