@@ -317,122 +317,123 @@ function stopCamera() {
 /* ── SNAPSHOT / DOWNLOAD ── */
 function textToCanvas(target, format = 'story') {
   const text = asciiText.textContent;
-  if (!text) return false;
+  if (!text || !text.trim()) return false;
   const lines = text.split('\n');
   if (!lines.length) return false;
 
+  // BUG FIX: Ambil nilai font yang benar saat fungsi dipanggil
+  const FONT_SIZE = getFontSize();
+  const CHAR_W    = getCharW();
+  const LINE_H    = getLineH();
 
   const cols = lines[0].length;
   const rows = lines.length;
-  
+
+  // Hitung dimensi canvas output dengan font yang benar
   const SCALE = 3; // 3x scale for very crisp printing
   const cw = Math.round(cols * CHAR_W * SCALE);
   const ch = Math.round(rows * LINE_H * SCALE);
-  
-  const PADDING = 20 * SCALE;
-  const INNER_PAD = 16 * SCALE;
+
+  const PADDING      = 20  * SCALE;
+  const INNER_PAD    = 16  * SCALE;
   const FOOTER_HEIGHT = 280 * SCALE;
-  
+
   const cw_box = cw + INNER_PAD * 2;
   const ch_box = ch + INNER_PAD * 2;
-  
-  const contentWidth = cw_box + PADDING * 2;
+
+  const contentWidth  = cw_box + PADDING * 2;
   const contentHeight = ch_box + PADDING * 2 + FOOTER_HEIGHT;
 
-  let finalWidth = contentWidth;
+  let finalWidth  = contentWidth;
   let finalHeight = contentHeight;
-  let offsetY = 0;
+  let offsetY     = 0;
 
+  // 'story' = 9:16, 'receipt' atau lainnya = tinggi natural
   if (format === 'story') {
     finalHeight = Math.round(finalWidth * (16 / 9));
-    offsetY = Math.round((finalHeight - contentHeight) / 2);
-    if (offsetY < 0) {
-      finalHeight = contentHeight;
-      offsetY = 0;
-    }
+    offsetY     = Math.round((finalHeight - contentHeight) / 2);
+    if (offsetY < 0) { finalHeight = contentHeight; offsetY = 0; }
   }
 
-  target.width = Math.max(finalWidth, 1);
+  target.width  = Math.max(finalWidth,  1);
   target.height = Math.max(finalHeight, 1);
-  
+
   const ctx = target.getContext('2d');
-  
+
   // Background
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, target.width, target.height);
-  
+
   ctx.save();
   ctx.translate(0, offsetY);
-  
+
   if (state.showBgCam && bgVideoCanvas) {
     ctx.save();
-    ctx.globalAlpha = 1; // Full opacity for thermal printing
-    ctx.imageSmoothingEnabled = false; // Ensure dither dots stay crisp when upscaled
+    ctx.globalAlpha = 1;
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(bgVideoCanvas, PADDING + INNER_PAD, PADDING + INNER_PAD, cw, ch);
     ctx.restore();
   }
-  
+
   // Dotted border
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 4 * SCALE;
+  ctx.lineWidth   = 4 * SCALE;
   ctx.setLineDash([4 * SCALE, 6 * SCALE]);
   ctx.strokeRect(PADDING, PADDING, cw_box, ch_box);
   ctx.setLineDash([]);
-  
+
   // ASCII Text
   if (state.showText) {
     ctx.globalCompositeOperation = 'difference';
-    ctx.fillStyle = '#ffffff'; // White text blends with background
-    const FONT_SIZE = getFontSize();
-    const CHAR_W = getCharW();
-    const LINE_H = getLineH();
-    ctx.font = `${FONT_SIZE * SCALE}px 'VT323', monospace`;
+    ctx.fillStyle   = '#ffffff';
+    ctx.font        = `${FONT_SIZE * SCALE}px 'VT323', monospace`;
     ctx.textBaseline = 'top';
-    lines.forEach((line, i) => ctx.fillText(line, PADDING + INNER_PAD, PADDING + INNER_PAD + i * LINE_H * SCALE));
-    ctx.globalCompositeOperation = 'source-over'; // restore
+    lines.forEach((line, i) =>
+      ctx.fillText(line, PADDING + INNER_PAD, PADDING + INNER_PAD + i * LINE_H * SCALE)
+    );
+    ctx.globalCompositeOperation = 'source-over';
   }
-  
+
   // Receipt Footer
   const footerY = PADDING + ch_box + 40 * SCALE;
   ctx.fillStyle = '#1A1A1A';
-  
+
   ctx.font = `bold ${32 * SCALE}px 'Space Grotesk', sans-serif`;
-  ctx.fillText("ASCII-ROID", PADDING, footerY);
-  
+  ctx.fillText('ASCII-ROID', PADDING, footerY);
+
   ctx.font = `500 ${24 * SCALE}px 'Space Grotesk', sans-serif`;
   const words = [
-    "BUKAN STRUK MINIMARKET",
-    "100% LO-RES DEFINITION",
-    "WARNING: WILL FADE EVENTUALLY"
+    'BUKAN STRUK MINIMARKET',
+    '100% LO-RES DEFINITION',
+    'WARNING: WILL FADE EVENTUALLY'
   ];
-  const randomWord = words[Math.floor(Math.random() * words.length)];
-  const today = new Date();
-  const dateString = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const randomWord  = words[Math.floor(Math.random() * words.length)];
+  const today       = new Date();
+  const dateString  = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
   ctx.fillText(randomWord, PADDING, footerY + 45 * SCALE, cw_box);
-  
+
   ctx.font = `500 ${20 * SCALE}px 'Space Grotesk', sans-serif`;
   ctx.fillText(dateString, PADDING, footerY + 75 * SCALE, cw_box);
-  
+
   ctx.beginPath();
   ctx.setLineDash([4 * SCALE, 4 * SCALE]);
   ctx.lineWidth = 2 * SCALE;
-  ctx.moveTo(PADDING, footerY + 115 * SCALE);
+  ctx.moveTo(PADDING,          footerY + 115 * SCALE);
   ctx.lineTo(PADDING + cw_box, footerY + 115 * SCALE);
   ctx.stroke();
   ctx.setLineDash([]);
-  
+
   ctx.font = `500 ${24 * SCALE}px 'Space Grotesk', sans-serif`;
-  const authorText = "by @djoardi";
+  const authorText  = 'by @djoardi';
   const authorWidth = ctx.measureText(authorText).width;
   ctx.fillText(authorText, PADDING + cw_box - authorWidth, footerY + 160 * SCALE);
-  
-  ctx.fillText("IG/WA", PADDING, footerY + 200 * SCALE);
-  const phoneText = "+62 812 4678 2525";
+
+  ctx.fillText('IG/WA', PADDING, footerY + 200 * SCALE);
+  const phoneText  = '+62 812 4678 2525';
   const phoneWidth = ctx.measureText(phoneText).width;
   ctx.fillText(phoneText, PADDING + cw_box - phoneWidth, footerY + 200 * SCALE);
-  
+
   ctx.restore();
-  
   return true;
 }
 
@@ -440,33 +441,56 @@ let currentShareFile = null;
 
 function takeSnapshot() {
   if (!state.running || !asciiText.textContent) { showToast('TIDAK ADA FRAME'); return; }
-  if (textToCanvas(lightboxCanvas)) {
-    lightbox.removeAttribute('hidden');
-    showToast('SNAPSHOT DIAMBIL');
-    
-    // Siapkan file secara asinkron agar siap saat tombol share ditekan (iOS butuh ini)
-    lightboxCanvas.toBlob(blob => {
-      if (blob) {
-        currentShareFile = new File([blob], `ascii_roid_${Date.now()}.png`, { type: 'image/png' });
-      }
-    }, 'image/png');
-  }
+  // Tunggu font VT323 benar-benar dimuat sebelum menggambar
+  document.fonts.load(`${getFontSize() * 3}px VT323`).then(() => {
+    if (textToCanvas(lightboxCanvas)) {
+      lightbox.removeAttribute('hidden');
+      showToast('SNAPSHOT DIAMBIL');
+      // Reset currentShareFile dulu agar tidak pakai file lama
+      currentShareFile = null;
+      lightboxCanvas.toBlob(blob => {
+        if (blob) {
+          currentShareFile = new File([blob], `ascii_roid_${Date.now()}.png`, { type: 'image/png' });
+        }
+      }, 'image/png');
+    } else {
+      showToast('GAGAL MENGAMBIL SNAPSHOT');
+    }
+  }).catch(() => {
+    // Font gagal dimuat, coba gambar tanpa menunggu
+    if (textToCanvas(lightboxCanvas)) {
+      lightbox.removeAttribute('hidden');
+      showToast('SNAPSHOT DIAMBIL');
+    }
+  });
 }
 
+// BUG FIX: iOS Safari tidak mendukung a.click() tanpa elemen di DOM
 function downloadCanvas(canvas) {
-  const a = document.createElement('a');
-  a.download = `ditheroid_${Date.now()}.png`;
-  a.href = canvas.toDataURL('image/png');
-  a.click();
-  showToast('MENGUNDUH...');
+  canvas.toBlob(blob => {
+    if (!blob) { showToast('GAGAL MEMBUAT FILE'); return; }
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = `ascii_roid_${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('MENGUNDUH...');
+  }, 'image/png');
 }
 
 function downloadCurrent() {
   if (!state.running || !asciiText.textContent) { showToast('TIDAK ADA DATA'); return; }
-  const tmp = document.createElement('canvas');
-  if (textToCanvas(tmp)) {
-    downloadCanvas(tmp);
-  }
+  document.fonts.load(`${getFontSize() * 3}px VT323`).then(() => {
+    const tmp = document.createElement('canvas');
+    if (textToCanvas(tmp)) {
+      downloadCanvas(tmp);
+    } else {
+      showToast('TIDAK ADA DATA');
+    }
+  });
 }
 
 function canvasToEscPos(canvas, printWidth = 384) {
@@ -613,19 +637,26 @@ async function printViaBluetooth(canvas) {
 
 async function printReceipt() {
   if (!state.running || !asciiText.textContent) { showToast('TIDAK ADA DATA'); return; }
-  
+
+  // BUG FIX: format 'receipt' tidak dikenal, gunakan format yang benar ('natural' = tinggi asli)
+  await document.fonts.load(`${getFontSize() * 3}px VT323`);
+
   if (navigator.bluetooth) {
     const tmp = document.createElement('canvas');
-    if (textToCanvas(tmp, 'receipt')) {
+    // Pakai format default (bukan 'story' bukan 'receipt') agar tinggi natural
+    if (textToCanvas(tmp)) {
       await printViaBluetooth(tmp);
+    } else {
+      showToast('TIDAK ADA DATA');
     }
   } else {
-    if (textToCanvas(lightboxCanvas, 'receipt')) {
+    // Fallback: tampilkan di lightbox lalu print
+    if (textToCanvas(lightboxCanvas)) {
       lightbox.removeAttribute('hidden');
       showToast('MEMPERSIAPKAN PRINT...');
-      setTimeout(() => {
-        window.print();
-      }, 500);
+      setTimeout(() => window.print(), 500);
+    } else {
+      showToast('TIDAK ADA DATA');
     }
   }
 }
