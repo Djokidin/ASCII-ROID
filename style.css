@@ -366,11 +366,18 @@ video {
   align-items: center;
   gap: 12px;
   max-width: 92vw;
+  max-height: 95vh;
+  overflow-y: auto;
+  padding: 16px 0;
+  scrollbar-width: none;
+}
+.lb-box::-webkit-scrollbar {
+  display: none;
 }
 
 #lightboxCanvas {
   max-width: 100%;
-  max-height: 82svh;
+  max-height: 60svh;
   display: block;
   border: 1px solid #1A1A1A;
   border-radius: 12px;

@@ -279,7 +279,8 @@ function textToCanvas(target, format = 'story') {
   const text = asciiText.textContent;
   if (!text) return false;
   const lines = text.split('\n');
-  if (!lines.length || !lines[0].trim()) return false;
+  if (!lines.length) return false;
+
 
   const cols = lines[0].length;
   const rows = lines.length;
@@ -389,11 +390,20 @@ function textToCanvas(target, format = 'story') {
   return true;
 }
 
+let currentShareFile = null;
+
 function takeSnapshot() {
   if (!state.running || !asciiText.textContent) { showToast('TIDAK ADA FRAME'); return; }
   if (textToCanvas(lightboxCanvas)) {
     lightbox.removeAttribute('hidden');
     showToast('SNAPSHOT DIAMBIL');
+    
+    // Siapkan file secara asinkron agar siap saat tombol share ditekan (iOS butuh ini)
+    lightboxCanvas.toBlob(blob => {
+      if (blob) {
+        currentShareFile = new File([blob], `ascii_roid_${Date.now()}.png`, { type: 'image/png' });
+      }
+    }, 'image/png');
   }
 }
 
@@ -490,22 +500,27 @@ lightboxCanvas.addEventListener('dblclick', () => downloadCanvas(lightboxCanvas)
 
 if (btnShare) {
   btnShare.addEventListener('click', async () => {
-    if (!navigator.share) {
+    if (!navigator.share || !navigator.canShare) {
       showToast('TIDAK DIDUKUNG BROWSER INI');
       return;
     }
-    lightboxCanvas.toBlob(async (blob) => {
-      try {
-        const file = new File([blob], `ascii_roid_${Date.now()}.png`, { type: 'image/png' });
-        await navigator.share({
-          title: 'ASCII-ROID',
-          text: '📸 diambil dengan ASCII-ROID',
-          files: [file]
-        });
-      } catch (err) {
-        if (err.name !== 'AbortError') showToast('GAGAL MEMBAGIKAN');
-      }
-    }, 'image/png');
+    if (!currentShareFile) {
+      showToast('GAMBAR SEDANG DIPROSES, COBA LAGI');
+      return;
+    }
+    if (!navigator.canShare({ files: [currentShareFile] })) {
+       showToast('BROWSER TIDAK MENDUKUNG SHARE GAMBAR');
+       return;
+    }
+    try {
+      await navigator.share({
+        title: 'ASCII-ROID',
+        text: '📸 diambil dengan ASCII-ROID',
+        files: [currentShareFile]
+      });
+    } catch (err) {
+      if (err.name !== 'AbortError') showToast('GAGAL MEMBAGIKAN');
+    }
   });
 }
 
