@@ -45,7 +45,7 @@ video {
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   width: 90vw;
   max-width: calc(85vh * 0.75);
   z-index: 100;
@@ -244,6 +244,8 @@ video {
   overflow: hidden;
   background: transparent;
   display: flex;
+  flex-direction: column;
+  gap: 16px;
   align-items: center;
   justify-content: center;
 }
@@ -252,7 +254,7 @@ video {
 .ascii-frame {
   position: relative;
   aspect-ratio: 3 / 4;
-  max-height: 85%;
+  max-height: calc(100% - 50px);
   max-width: 90%;
   height: 100%;
   background: #fff;
@@ -437,23 +439,27 @@ video {
     gap: 16px;
   }
   .ascii-stage {
-    bottom: 120px;
+    bottom: 130px;
   }
   .ctrl-pill {
     width: 100%;
     justify-content: center;
+    border-radius: 20px;
+    padding: 8px 6px;
   }
   .ctrl-row {
     width: 100%;
-    justify-content: space-between;
-    gap: 2px;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    height: auto;
   }
   .btn-cam {
     padding: 6px 12px;
   }
   .btn-mono {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
   }
 }
 

@@ -39,12 +39,20 @@
 
   <!-- ── BOTTOM BAR ── -->
   <footer class="bottombar">
-    <span class="logo">ASCII-ROID</span>
-
     <div class="ctrl-pill">
       <div class="ctrl-row">
         <button id="btnCamera" class="btn-cam">[ START ]</button>
         <button id="btnFlip" class="btn-mono" title="Mirror">⇄</button>
+        <button id="btnSwitchCam" class="btn-mono" title="Switch Camera" style="display: none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"></path>
+            <path d="M4 15v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="m16 5-4-4-4 4"></path>
+            <path d="m8 19 4 4 4-4"></path>
+          </svg>
+        </button>
         <div class="ctrl-sep"></div>
         <label class="ctrl-label" for="selLang">LANG</label>
         <select id="selLang" class="ctrl-select">
@@ -58,6 +66,14 @@
             stroke-linecap="round" stroke-linejoin="round">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
             <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
+        <button id="btnToggleText" class="btn-mono" title="Toggle Text">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 7 4 4 20 4 20 7"></polyline>
+            <line x1="9" y1="20" x2="15" y2="20"></line>
+            <line x1="12" y1="4" x2="12" y2="20"></line>
           </svg>
         </button>
         <button id="btnInvert" class="btn-mono" title="Invert ASCII">
@@ -89,6 +105,14 @@
             <polyline points="6 9 6 2 18 2 18 9"></polyline>
             <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
             <rect x="6" y="14" width="12" height="8"></rect>
+          </svg>
+        </button>
+        <div class="ctrl-sep"></div>
+        <button id="btnFullscreen" class="btn-mono" title="Fullscreen">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
+            </path>
           </svg>
         </button>
       </div>

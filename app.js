@@ -56,6 +56,8 @@ const state = {
   wordIdx: 0,
   showBgCam: false,
   invertAscii: false,
+  facingMode: 'user',
+  showText: true,
 };
 
 /* ── DOM ── */
@@ -74,13 +76,16 @@ const toast = document.getElementById('toast');
 
 const btnCamera = document.getElementById('btnCamera');
 const btnFlip = document.getElementById('btnFlip');
+const btnSwitchCam = document.getElementById('btnSwitchCam');
 const btnBgCam = document.getElementById('btnBgCam');
+const btnToggleText = document.getElementById('btnToggleText');
 const btnInvert = document.getElementById('btnInvert');
 const bgVideoCanvas = document.getElementById('bgVideoCanvas');
 const bgVideoCtx = bgVideoCanvas ? bgVideoCanvas.getContext('2d', { willReadFrequently: true }) : null;
 const btnSnapshot = document.getElementById('btnSnapshot');
 const btnDownload = document.getElementById('btnDownload');
 const btnPrint = document.getElementById('btnPrint');
+const btnFullscreen = document.getElementById('btnFullscreen');
 const asciiFrame = document.querySelector('.ascii-frame');
 const selLang = document.getElementById('selLang');
 
@@ -226,7 +231,7 @@ function renderFrame(ts) {
 async function startCamera() {
   try {
     state.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+      video: { facingMode: state.facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
     });
     video.srcObject = state.stream;
     await new Promise(r => (video.onloadedmetadata = r));
@@ -333,12 +338,14 @@ function textToCanvas(target, format = 'story') {
   ctx.setLineDash([]);
   
   // ASCII Text
-  ctx.globalCompositeOperation = 'difference';
-  ctx.fillStyle = '#ffffff'; // White text blends with background
-  ctx.font = `${FONT_SIZE * SCALE}px 'VT323', monospace`;
-  ctx.textBaseline = 'top';
-  lines.forEach((line, i) => ctx.fillText(line, PADDING + INNER_PAD, PADDING + INNER_PAD + i * LINE_H * SCALE));
-  ctx.globalCompositeOperation = 'source-over'; // restore
+  if (state.showText) {
+    ctx.globalCompositeOperation = 'difference';
+    ctx.fillStyle = '#ffffff'; // White text blends with background
+    ctx.font = `${FONT_SIZE * SCALE}px 'VT323', monospace`;
+    ctx.textBaseline = 'top';
+    lines.forEach((line, i) => ctx.fillText(line, PADDING + INNER_PAD, PADDING + INNER_PAD + i * LINE_H * SCALE));
+    ctx.globalCompositeOperation = 'source-over'; // restore
+  }
   
   // Receipt Footer
   const footerY = PADDING + ch_box + 40 * SCALE;
@@ -348,7 +355,15 @@ function textToCanvas(target, format = 'story') {
   ctx.fillText("ASCII-ROID", PADDING, footerY);
   
   ctx.font = `500 ${24 * SCALE}px 'Space Grotesk', sans-serif`;
-  ctx.fillText('"this is a picture of you"', PADDING, footerY + 45 * SCALE);
+  const words = [
+    "BUKAN STRUK MINIMARKET",
+    "100% LO-RES DEFINITION",
+    "WARNING: WILL FADE EVENTUALLY"
+  ];
+  const randomWord = words[Math.floor(Math.random() * words.length)];
+  const today = new Date();
+  const dateString = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  ctx.fillText(`"${randomWord} - ${dateString}"`, PADDING, footerY + 45 * SCALE);
   
   ctx.beginPath();
   ctx.setLineDash([4 * SCALE, 4 * SCALE]);
@@ -421,6 +436,17 @@ function showToast(msg, dur = 2400) {
 /* ── EVENTS ── */
 btnCamera.addEventListener('click', () => state.running ? stopCamera() : startCamera());
 
+if (btnSwitchCam) {
+  btnSwitchCam.addEventListener('click', () => {
+    state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
+    showToast(state.facingMode === 'user' ? 'KAMERA DEPAN' : 'KAMERA BELAKANG');
+    if (state.running) {
+      stopCamera();
+      setTimeout(startCamera, 300);
+    }
+  });
+}
+
 btnFlip.addEventListener('click', () => {
   state.mirrored = !state.mirrored;
   showToast(state.mirrored ? 'MIRROR ON' : 'MIRROR OFF');
@@ -432,6 +458,15 @@ btnBgCam.addEventListener('click', () => {
   btnBgCam.classList.toggle('active', state.showBgCam);
   showToast(state.showBgCam ? 'BACKGROUND: ON' : 'BACKGROUND: OFF');
 });
+
+if (btnToggleText) {
+  btnToggleText.addEventListener('click', () => {
+    state.showText = !state.showText;
+    asciiText.style.opacity = state.showText ? '1' : '0';
+    btnToggleText.classList.toggle('active', !state.showText);
+    showToast(state.showText ? 'TEXT: ON' : 'TEXT: OFF');
+  });
+}
 
 btnInvert.addEventListener('click', () => {
   state.invertAscii = !state.invertAscii;
@@ -457,5 +492,22 @@ document.addEventListener('keydown', e => {
   if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey) takeSnapshot();
 });
 
+if (btnFullscreen) {
+  btnFullscreen.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        showToast(`Fullscreen error`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  });
+}
+
 /* ── INIT ── */
 buildPool();
+
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+if (isMobile && btnSwitchCam) {
+  btnSwitchCam.style.display = 'flex';
+}
