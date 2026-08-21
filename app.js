@@ -234,35 +234,25 @@ let currentDeviceIdx = 0;
 /* ── CAMERA ── */
 async function startCamera() {
   try {
-    let constraints = { video: true };
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
+    
+    // On Android, explicitly setting exact facingMode is sometimes the only way to force it,
+    // but if it fails we fallback to ideal.
+    let videoConstraint = { facingMode: state.facingMode };
     if (isMobile) {
-      if (videoDevices.length > 0) {
-        constraints.video = { deviceId: { exact: videoDevices[currentDeviceIdx].deviceId } };
-      } else {
-        constraints.video = { facingMode: state.facingMode };
-      }
-    } else {
-      constraints.video = { facingMode: state.facingMode };
+      videoConstraint = { facingMode: { ideal: state.facingMode } };
     }
 
-    state.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    state.stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint });
     video.srcObject = state.stream;
     await new Promise(r => (video.onloadedmetadata = r));
     await video.play();
 
-    if (isMobile && videoDevices.length === 0) {
+    // Show switch camera button if there's more than 1 camera
+    if (isMobile) {
       const devices = await navigator.mediaDevices.enumerateDevices();
-      videoDevices = devices.filter(d => d.kind === 'videoinput');
-      if (state.stream.getVideoTracks().length > 0) {
-        const activeTrack = state.stream.getVideoTracks()[0];
-        const activeDevice = videoDevices.find(d => d.label === activeTrack.label);
-        if (activeDevice) {
-           currentDeviceIdx = videoDevices.indexOf(activeDevice);
-        }
-      }
-      if (videoDevices.length > 1 && btnSwitchCam) {
+      const videoInputs = devices.filter(d => d.kind === 'videoinput');
+      if (videoInputs.length > 1 && btnSwitchCam) {
          btnSwitchCam.style.display = 'inline-flex';
       }
     }
@@ -553,14 +543,15 @@ async function printViaBluetooth(canvas) {
     const buffer = canvasToEscPos(canvas, 384);
     
     showToast('MENCETAK...');
-    const CHUNK_SIZE = 256;
+    const CHUNK_SIZE = 40; // Reduced to 40 bytes to ensure safe BLE MTU size
     for (let i = 0; i < buffer.length; i += CHUNK_SIZE) {
       const chunk = buffer.slice(i, i + CHUNK_SIZE);
       if (writeChar.properties.write) {
          await writeChar.writeValue(chunk);
+         await new Promise(r => setTimeout(r, 5)); 
       } else {
          await writeChar.writeValueWithoutResponse(chunk);
-         await new Promise(r => setTimeout(r, 10)); 
+         await new Promise(r => setTimeout(r, 20)); 
       }
     }
     
@@ -608,17 +599,13 @@ btnCamera.addEventListener('click', () => state.running ? stopCamera() : startCa
 
 if (btnSwitchCam) {
   btnSwitchCam.addEventListener('click', () => {
-    if (videoDevices.length > 1) {
-      currentDeviceIdx = (currentDeviceIdx + 1) % videoDevices.length;
-      showToast('MENUKAR KAMERA...');
-    } else {
-      state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
-      showToast(state.facingMode === 'user' ? 'KAMERA DEPAN' : 'KAMERA BELAKANG');
-    }
+    state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
+    showToast(state.facingMode === 'user' ? 'KAMERA DEPAN' : 'KAMERA BELAKANG');
     
     if (state.running) {
       stopCamera();
-      setTimeout(startCamera, 600); // Waktu yang cukup untuk Android melepaskan hardware kamera
+      // Increase timeout for Android to release camera lock fully
+      setTimeout(startCamera, 800); 
     }
   });
 }
