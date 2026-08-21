@@ -230,9 +230,25 @@ function renderFrame(ts) {
 /* ── CAMERA ── */
 async function startCamera() {
   try {
-    state.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: state.facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
-    });
+    let videoConstraints = {};
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // Pada mobile, hindari set width/height agar tidak bentrok dengan facingMode
+      videoConstraints.facingMode = state.facingMode === 'environment' ? { exact: 'environment' } : 'user';
+    } else {
+      videoConstraints.facingMode = state.facingMode;
+      videoConstraints.width = { ideal: 1280 };
+      videoConstraints.height = { ideal: 720 };
+    }
+
+    try {
+      state.stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+    } catch (fallbackErr) {
+      // Fallback jika exact facingMode tidak didukung
+      videoConstraints.facingMode = state.facingMode;
+      state.stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+    }
     video.srcObject = state.stream;
     await new Promise(r => (video.onloadedmetadata = r));
     await video.play();
@@ -354,7 +370,7 @@ function textToCanvas(target, format = 'story') {
   ctx.font = `bold ${32 * SCALE}px 'Space Grotesk', sans-serif`;
   ctx.fillText("ASCII-ROID", PADDING, footerY);
   
-  ctx.font = `500 ${24 * SCALE}px 'Space Grotesk', sans-serif`;
+  ctx.font = `500 ${16 * SCALE}px 'Space Grotesk', sans-serif`;
   const words = [
     "BUKAN STRUK MINIMARKET",
     "100% LO-RES DEFINITION",
@@ -363,7 +379,7 @@ function textToCanvas(target, format = 'story') {
   const randomWord = words[Math.floor(Math.random() * words.length)];
   const today = new Date();
   const dateString = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-  ctx.fillText(`"${randomWord} - ${dateString}"`, PADDING, footerY + 45 * SCALE);
+  ctx.fillText(`"${randomWord} - ${dateString}"`, PADDING, footerY + 45 * SCALE, cw_box);
   
   ctx.beginPath();
   ctx.setLineDash([4 * SCALE, 4 * SCALE]);
@@ -442,7 +458,7 @@ if (btnSwitchCam) {
     showToast(state.facingMode === 'user' ? 'KAMERA DEPAN' : 'KAMERA BELAKANG');
     if (state.running) {
       stopCamera();
-      setTimeout(startCamera, 300);
+      setTimeout(startCamera, 600); // Waktu yang cukup untuk Android melepaskan hardware kamera
     }
   });
 }
