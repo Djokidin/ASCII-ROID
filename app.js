@@ -72,6 +72,7 @@ const lightbox = document.getElementById('lightbox');
 const lightboxCanvas = document.getElementById('lightboxCanvas');
 const lightboxClose = document.getElementById('lightboxClose');
 const lightboxBg = document.getElementById('lightboxBg');
+const btnShare = document.getElementById('btnShare');
 const toast = document.getElementById('toast');
 
 const btnCamera = document.getElementById('btnCamera');
@@ -230,25 +231,9 @@ function renderFrame(ts) {
 /* ── CAMERA ── */
 async function startCamera() {
   try {
-    let videoConstraints = {};
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-      // Pada mobile, hindari set width/height agar tidak bentrok dengan facingMode
-      videoConstraints.facingMode = state.facingMode === 'environment' ? { exact: 'environment' } : 'user';
-    } else {
-      videoConstraints.facingMode = state.facingMode;
-      videoConstraints.width = { ideal: 1280 };
-      videoConstraints.height = { ideal: 720 };
-    }
-
-    try {
-      state.stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
-    } catch (fallbackErr) {
-      // Fallback jika exact facingMode tidak didukung
-      videoConstraints.facingMode = state.facingMode;
-      state.stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
-    }
+    state.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: state.facingMode }
+    });
     video.srcObject = state.stream;
     await new Promise(r => (video.onloadedmetadata = r));
     await video.play();
@@ -503,6 +488,27 @@ lightboxClose.addEventListener('click', () => lightbox.setAttribute('hidden', ''
 lightboxBg.addEventListener('click', () => lightbox.setAttribute('hidden', ''));
 lightboxCanvas.addEventListener('dblclick', () => downloadCanvas(lightboxCanvas));
 
+if (btnShare) {
+  btnShare.addEventListener('click', async () => {
+    if (!navigator.share) {
+      showToast('TIDAK DIDUKUNG BROWSER INI');
+      return;
+    }
+    lightboxCanvas.toBlob(async (blob) => {
+      try {
+        const file = new File([blob], `ascii_roid_${Date.now()}.png`, { type: 'image/png' });
+        await navigator.share({
+          title: 'ASCII-ROID',
+          text: '📸 diambil dengan ASCII-ROID',
+          files: [file]
+        });
+      } catch (err) {
+        if (err.name !== 'AbortError') showToast('GAGAL MEMBAGIKAN');
+      }
+    }, 'image/png');
+  });
+}
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') lightbox.setAttribute('hidden', '');
   if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey) takeSnapshot();
@@ -510,12 +516,31 @@ document.addEventListener('keydown', e => {
 
 if (btnFullscreen) {
   btnFullscreen.addEventListener('click', () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(err => {
-        showToast(`Fullscreen error`);
-      });
+    const docElm = document.documentElement;
+    const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+
+    if (!isFullscreen) {
+      if (docElm.requestFullscreen) {
+        docElm.requestFullscreen().catch(() => showToast('Gagal Fullscreen'));
+      } else if (docElm.webkitRequestFullscreen) {
+        docElm.webkitRequestFullscreen();
+      } else if (docElm.mozRequestFullScreen) {
+        docElm.mozRequestFullScreen();
+      } else if (docElm.msRequestFullscreen) {
+        docElm.msRequestFullscreen();
+      } else {
+        showToast('iOS/Browser tidak dukung Fullscreen');
+      }
     } else {
-      document.exitFullscreen();
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
     }
   });
 }
