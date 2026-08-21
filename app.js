@@ -106,9 +106,9 @@ function buildPool() {
 }
 
 /* ── CHAR METRICS (must match style.css ascii-out font) ── */
-const FONT_SIZE = 16;          // px — matches .ascii-out font-size
-const CHAR_W = 6.406;       // VT323 advance width at 16px
-const LINE_H = 16;          // 16 × 1 line-height
+const FONT_SIZE = 24;          // px — matches .ascii-out font-size
+const CHAR_W = 9.609;       // VT323 advance width at 24px
+const LINE_H = 24;          // 24 × 1 line-height
 
 /* ── RENDER ── */
 function renderFrame(ts) {
@@ -228,15 +228,44 @@ function renderFrame(ts) {
   state.animId = requestAnimationFrame(renderFrame);
 }
 
+let videoDevices = [];
+let currentDeviceIdx = 0;
+
 /* ── CAMERA ── */
 async function startCamera() {
   try {
-    state.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: state.facingMode }
-    });
+    let constraints = { video: true };
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      if (videoDevices.length > 0) {
+        constraints.video = { deviceId: { exact: videoDevices[currentDeviceIdx].deviceId } };
+      } else {
+        constraints.video = { facingMode: state.facingMode };
+      }
+    } else {
+      constraints.video = { facingMode: state.facingMode };
+    }
+
+    state.stream = await navigator.mediaDevices.getUserMedia(constraints);
     video.srcObject = state.stream;
     await new Promise(r => (video.onloadedmetadata = r));
     await video.play();
+
+    if (isMobile && videoDevices.length === 0) {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      videoDevices = devices.filter(d => d.kind === 'videoinput');
+      if (state.stream.getVideoTracks().length > 0) {
+        const activeTrack = state.stream.getVideoTracks()[0];
+        const activeDevice = videoDevices.find(d => d.label === activeTrack.label);
+        if (activeDevice) {
+           currentDeviceIdx = videoDevices.indexOf(activeDevice);
+        }
+      }
+      if (videoDevices.length > 1 && btnSwitchCam) {
+         btnSwitchCam.style.display = 'inline-flex';
+      }
+    }
 
     state.running = true;
     cameraOff.classList.add('hidden');
@@ -291,7 +320,7 @@ function textToCanvas(target, format = 'story') {
   
   const PADDING = 20 * SCALE;
   const INNER_PAD = 16 * SCALE;
-  const FOOTER_HEIGHT = 240 * SCALE;
+  const FOOTER_HEIGHT = 280 * SCALE;
   
   const cw_box = cw + INNER_PAD * 2;
   const ch_box = ch + INNER_PAD * 2;
@@ -356,7 +385,7 @@ function textToCanvas(target, format = 'story') {
   ctx.font = `bold ${32 * SCALE}px 'Space Grotesk', sans-serif`;
   ctx.fillText("ASCII-ROID", PADDING, footerY);
   
-  ctx.font = `500 ${16 * SCALE}px 'Space Grotesk', sans-serif`;
+  ctx.font = `500 ${24 * SCALE}px 'Space Grotesk', sans-serif`;
   const words = [
     "BUKAN STRUK MINIMARKET",
     "100% LO-RES DEFINITION",
@@ -365,25 +394,28 @@ function textToCanvas(target, format = 'story') {
   const randomWord = words[Math.floor(Math.random() * words.length)];
   const today = new Date();
   const dateString = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-  ctx.fillText(`"${randomWord} - ${dateString}"`, PADDING, footerY + 45 * SCALE, cw_box);
+  ctx.fillText(randomWord, PADDING, footerY + 45 * SCALE, cw_box);
+  
+  ctx.font = `500 ${20 * SCALE}px 'Space Grotesk', sans-serif`;
+  ctx.fillText(dateString, PADDING, footerY + 75 * SCALE, cw_box);
   
   ctx.beginPath();
   ctx.setLineDash([4 * SCALE, 4 * SCALE]);
   ctx.lineWidth = 2 * SCALE;
-  ctx.moveTo(PADDING, footerY + 85 * SCALE);
-  ctx.lineTo(PADDING + cw_box, footerY + 85 * SCALE);
+  ctx.moveTo(PADDING, footerY + 115 * SCALE);
+  ctx.lineTo(PADDING + cw_box, footerY + 115 * SCALE);
   ctx.stroke();
   ctx.setLineDash([]);
   
-  ctx.font = `400 ${20 * SCALE}px 'Space Grotesk', sans-serif`;
+  ctx.font = `500 ${24 * SCALE}px 'Space Grotesk', sans-serif`;
   const authorText = "by @djoardi";
   const authorWidth = ctx.measureText(authorText).width;
-  ctx.fillText(authorText, PADDING + cw_box - authorWidth, footerY + 125 * SCALE);
+  ctx.fillText(authorText, PADDING + cw_box - authorWidth, footerY + 160 * SCALE);
   
-  ctx.fillText("IG/WA", PADDING, footerY + 165 * SCALE);
+  ctx.fillText("IG/WA", PADDING, footerY + 200 * SCALE);
   const phoneText = "+62 812 4678 2525";
   const phoneWidth = ctx.measureText(phoneText).width;
-  ctx.fillText(phoneText, PADDING + cw_box - phoneWidth, footerY + 165 * SCALE);
+  ctx.fillText(phoneText, PADDING + cw_box - phoneWidth, footerY + 200 * SCALE);
   
   ctx.restore();
   
@@ -434,10 +466,21 @@ function canvasToEscPos(canvas, printWidth = 384) {
   
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, printWidth, printHeight);
+  ctx.imageSmoothingEnabled = false; // Nearest neighbor scaling to prevent anti-aliasing (no grays)
   ctx.drawImage(canvas, 0, 0, printWidth, printHeight);
   
   const imgData = ctx.getImageData(0, 0, printWidth, printHeight);
   const pixels = imgData.data;
+  
+  const lumaArray = new Float32Array(printWidth * printHeight);
+  for (let i = 0; i < printWidth * printHeight; i++) {
+     const idx = i * 4;
+     const a = pixels[idx + 3] / 255;
+     const r = pixels[idx] * a + 255 * (1 - a);
+     const g = pixels[idx + 1] * a + 255 * (1 - a);
+     const b = pixels[idx + 2] * a + 255 * (1 - a);
+     lumaArray[i] = (r * 0.299 + g * 0.587 + b * 0.114);
+  }
   
   const widthInBytes = Math.ceil(printWidth / 8);
   const dataLen = widthInBytes * printHeight;
@@ -456,14 +499,9 @@ function canvasToEscPos(canvas, printWidth = 384) {
       for (let bit = 0; bit < 8; bit++) {
         const x = xByte * 8 + bit;
         if (x < printWidth) {
-          const idx = (y * printWidth + x) * 4;
-          const a = pixels[idx + 3];
-          if (a > 128) {
-             const brightness = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114);
-             if (brightness < 128) {
-               byte |= (1 << (7 - bit));
-             }
-          }
+           if (lumaArray[y * printWidth + x] < 128) {
+             byte |= (1 << (7 - bit));
+           }
         }
       }
       buffer[offset++] = byte;
@@ -570,8 +608,14 @@ btnCamera.addEventListener('click', () => state.running ? stopCamera() : startCa
 
 if (btnSwitchCam) {
   btnSwitchCam.addEventListener('click', () => {
-    state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
-    showToast(state.facingMode === 'user' ? 'KAMERA DEPAN' : 'KAMERA BELAKANG');
+    if (videoDevices.length > 1) {
+      currentDeviceIdx = (currentDeviceIdx + 1) % videoDevices.length;
+      showToast('MENUKAR KAMERA...');
+    } else {
+      state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
+      showToast(state.facingMode === 'user' ? 'KAMERA DEPAN' : 'KAMERA BELAKANG');
+    }
+    
     if (state.running) {
       stopCamera();
       setTimeout(startCamera, 600); // Waktu yang cukup untuk Android melepaskan hardware kamera
