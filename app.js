@@ -423,15 +423,136 @@ function downloadCurrent() {
   }
 }
 
+function canvasToEscPos(canvas, printWidth = 384) {
+  const ratio = printWidth / canvas.width;
+  const printHeight = Math.round(canvas.height * ratio);
+  
+  const tmp = document.createElement('canvas');
+  tmp.width = printWidth;
+  tmp.height = printHeight;
+  const ctx = tmp.getContext('2d');
+  
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, printWidth, printHeight);
+  ctx.drawImage(canvas, 0, 0, printWidth, printHeight);
+  
+  const imgData = ctx.getImageData(0, 0, printWidth, printHeight);
+  const pixels = imgData.data;
+  
+  const widthInBytes = Math.ceil(printWidth / 8);
+  const dataLen = widthInBytes * printHeight;
+  
+  const buffer = new Uint8Array(8 + dataLen + 3);
+  buffer.set([0x1D, 0x76, 0x30, 0x00], 0);
+  buffer[4] = widthInBytes & 0xFF;
+  buffer[5] = (widthInBytes >> 8) & 0xFF;
+  buffer[6] = printHeight & 0xFF;
+  buffer[7] = (printHeight >> 8) & 0xFF;
+  
+  let offset = 8;
+  for (let y = 0; y < printHeight; y++) {
+    for (let xByte = 0; xByte < widthInBytes; xByte++) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        const x = xByte * 8 + bit;
+        if (x < printWidth) {
+          const idx = (y * printWidth + x) * 4;
+          const a = pixels[idx + 3];
+          if (a > 128) {
+             const brightness = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114);
+             if (brightness < 128) {
+               byte |= (1 << (7 - bit));
+             }
+          }
+        }
+      }
+      buffer[offset++] = byte;
+    }
+  }
+  
+  buffer.set([0x1B, 0x64, 0x03], offset);
+  return buffer;
+}
+
+const PRINTER_SERVICES = [
+  '000018f0-0000-1000-8000-00805f9b34fb',
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+  0x18F0, 0xFF00, 0xFFE0
+];
+
+async function printViaBluetooth(canvas) {
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: PRINTER_SERVICES
+    });
+    
+    showToast('MENGHUBUNGKAN PRINTER...');
+    const server = await device.gatt.connect();
+    
+    let writeChar = null;
+    const services = await server.getPrimaryServices();
+    
+    for (const service of services) {
+      const characteristics = await service.getCharacteristics();
+      for (const char of characteristics) {
+        if (char.properties.write || char.properties.writeWithoutResponse) {
+          writeChar = char;
+          break;
+        }
+      }
+      if (writeChar) break;
+    }
+    
+    if (!writeChar) {
+      showToast('TIDAK DITEMUKAN LAYANAN PRINT');
+      device.gatt.disconnect();
+      return;
+    }
+    
+    showToast('MEMPROSES GAMBAR...');
+    const buffer = canvasToEscPos(canvas, 384);
+    
+    showToast('MENCETAK...');
+    const CHUNK_SIZE = 256;
+    for (let i = 0; i < buffer.length; i += CHUNK_SIZE) {
+      const chunk = buffer.slice(i, i + CHUNK_SIZE);
+      if (writeChar.properties.write) {
+         await writeChar.writeValue(chunk);
+      } else {
+         await writeChar.writeValueWithoutResponse(chunk);
+         await new Promise(r => setTimeout(r, 10)); 
+      }
+    }
+    
+    showToast('CETAK SELESAI');
+    device.gatt.disconnect();
+    
+  } catch (err) {
+    console.error(err);
+    if (err.name !== 'NotFoundError') {
+      showToast('GAGAL KONEK BLUETOOTH');
+    }
+  }
+}
+
 async function printReceipt() {
   if (!state.running || !asciiText.textContent) { showToast('TIDAK ADA DATA'); return; }
-  if (textToCanvas(lightboxCanvas, 'receipt')) {
-    lightbox.removeAttribute('hidden');
-    showToast('MEMPERSIAPKAN PRINT...');
-    // Give browser time to render canvas before opening print dialog
-    setTimeout(() => {
-      window.print();
-    }, 500);
+  
+  if (navigator.bluetooth) {
+    const tmp = document.createElement('canvas');
+    if (textToCanvas(tmp, 'receipt')) {
+      await printViaBluetooth(tmp);
+    }
+  } else {
+    if (textToCanvas(lightboxCanvas, 'receipt')) {
+      lightbox.removeAttribute('hidden');
+      showToast('MEMPERSIAPKAN PRINT...');
+      setTimeout(() => {
+        window.print();
+      }, 500);
+    }
   }
 }
 
