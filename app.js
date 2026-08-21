@@ -105,10 +105,23 @@ function buildPool() {
   sequentialText = pool.join(" ").toUpperCase() + " ";
 }
 
-/* ── CHAR METRICS (must match style.css ascii-out font) ── */
-const FONT_SIZE = 24;          // px — matches .ascii-out font-size
-const CHAR_W = 9.609;       // VT323 advance width at 24px
-const LINE_H = 24;          // 24 × 1 line-height
+/* ── CHAR METRICS — dinamis berdasarkan ukuran layar ── */
+function isMobileScreen() {
+  return window.innerWidth <= 768;
+}
+function getFontSize() {
+  // Harus cocok dengan CSS .ascii-out font-size
+  if (isMobileScreen()) return 12;
+  return 20;
+}
+function getCharW() {
+  // VT323 advance width ratio: ~0.4 × font-size (empiris)
+  if (isMobileScreen()) return 4.8;  // 12 × 0.4
+  return 8.0;                         // 20 × 0.4
+}
+function getLineH() {
+  return getFontSize(); // line-height = font-size (1.0)
+}
 
 /* ── RENDER ── */
 function renderFrame(ts) {
@@ -129,6 +142,8 @@ function renderFrame(ts) {
   const frameW = asciiFrame ? asciiFrame.offsetWidth : 340;
   const frameH = asciiFrame ? asciiFrame.offsetHeight : 453;
 
+  const CHAR_W = getCharW();
+  const LINE_H = getLineH();
   const cols = Math.floor(frameW / CHAR_W);
   const rows = Math.floor(frameH / LINE_H);
   
@@ -241,6 +256,12 @@ async function startCamera() {
     let videoConstraint = { facingMode: state.facingMode };
     if (isMobile) {
       videoConstraint = { facingMode: { ideal: state.facingMode } };
+    }
+
+    // Stop existing stream first to release camera lock (important for Android)
+    if (state.stream) {
+      state.stream.getTracks().forEach(t => t.stop());
+      state.stream = null;
     }
 
     state.stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint });
@@ -362,6 +383,9 @@ function textToCanvas(target, format = 'story') {
   if (state.showText) {
     ctx.globalCompositeOperation = 'difference';
     ctx.fillStyle = '#ffffff'; // White text blends with background
+    const FONT_SIZE = getFontSize();
+    const CHAR_W = getCharW();
+    const LINE_H = getLineH();
     ctx.font = `${FONT_SIZE * SCALE}px 'VT323', monospace`;
     ctx.textBaseline = 'top';
     lines.forEach((line, i) => ctx.fillText(line, PADDING + INNER_PAD, PADDING + INNER_PAD + i * LINE_H * SCALE));
@@ -624,9 +648,13 @@ if (btnSwitchCam) {
     showToast(state.facingMode === 'user' ? 'KAMERA DEPAN' : 'KAMERA BELAKANG');
     
     if (state.running) {
-      stopCamera();
-      // Increase timeout for Android to release camera lock fully
-      setTimeout(startCamera, 800); 
+      // Stop animasi dan stream dulu
+      state.running = false;
+      if (state.animId) { cancelAnimationFrame(state.animId); state.animId = null; }
+      if (state.stream) { state.stream.getTracks().forEach(t => t.stop()); state.stream = null; }
+      video.srcObject = null;
+      // Beri waktu cukup untuk Android melepas kamera
+      setTimeout(startCamera, 600);
     }
   });
 }
