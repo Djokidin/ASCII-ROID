@@ -60,6 +60,13 @@ const state = {
   showText: true,
 };
 
+const appSettings = {
+  author: localStorage.getItem('ascii_author') || 'by @djoardi',
+  contactLabel: localStorage.getItem('ascii_contact_label') || 'IG/WA',
+  contactValue: localStorage.getItem('ascii_contact_value') || '+62 812 4678 2525',
+  description: localStorage.getItem('ascii_description') || ''
+};
+
 /* ── DOM ── */
 const video = document.getElementById('video');
 const captureCanvas = document.getElementById('captureCanvas');
@@ -90,6 +97,15 @@ const btnFullscreen = document.getElementById('btnFullscreen');
 const asciiFrame = document.querySelector('.ascii-frame');
 const selLang = document.getElementById('selLang');
 
+const btnSettings = document.getElementById('btnSettings');
+const settingsModal = document.getElementById('settingsModal');
+const settingsBg = document.getElementById('settingsBg');
+const settingsClose = document.getElementById('settingsClose');
+const inpAuthor = document.getElementById('inpAuthor');
+const inpContactLabel = document.getElementById('inpContactLabel');
+const inpContactValue = document.getElementById('inpContactValue');
+const inpDescription = document.getElementById('inpDescription');
+const btnSaveSettings = document.getElementById('btnSaveSettings');
 
 /* ── WORD POOL ── */
 /* ── SEQUENTIAL TEXT ── */
@@ -506,14 +522,19 @@ function renderToCanvas(target, format = 'story') {
   ctx.setLineDash([]);
 
   ctx.font = `500 ${24 * SCALE}px 'Space Grotesk', sans-serif`;
-  const authorText  = 'by @djoardi';
+  const authorText  = appSettings.author;
   const authorWidth = ctx.measureText(authorText).width;
   ctx.fillText(authorText, PADDING + cw_box - authorWidth, footerY + 160 * SCALE);
 
-  ctx.fillText('IG/WA', PADDING, footerY + 200 * SCALE);
-  const phoneText  = '+62 812 4678 2525';
+  ctx.fillText(appSettings.contactLabel, PADDING, footerY + 200 * SCALE);
+  const phoneText  = appSettings.contactValue;
   const phoneWidth = ctx.measureText(phoneText).width;
   ctx.fillText(phoneText, PADDING + cw_box - phoneWidth, footerY + 200 * SCALE);
+
+  if (appSettings.description) {
+    ctx.font = `500 ${16 * SCALE}px 'Space Grotesk', sans-serif`;
+    ctx.fillText(appSettings.description, PADDING, footerY + 240 * SCALE, cw_box);
+  }
 
   ctx.restore();
   return true;
@@ -571,15 +592,7 @@ function downloadCanvas(canvas) {
 }
 
 function downloadCurrent() {
-  if (!state.running) { showToast('KAMERA BELUM AKTIF'); return; }
-  if (!video.videoWidth || !video.videoHeight) { showToast('VIDEO BELUM SIAP'); return; }
-  // Render langsung dari kamera saat user gesture (penting Android)
-  const tmp = document.createElement('canvas');
-  if (renderToCanvas(tmp)) {
-    downloadCanvas(tmp);
-  } else {
-    showToast('TIDAK ADA DATA');
-  }
+  downloadCanvas(lightboxCanvas);
 }
 
 function canvasToEscPos(canvas, printWidth = 384) {
@@ -664,7 +677,24 @@ const PRINTER_SERVICES = [
 async function printViaBluetooth(canvas) {
   try {
     const device = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
+      filters: [
+        { services: ['000018f0-0000-1000-8000-00805f9b34fb'] },
+        { services: ['e7810a71-73ae-499d-8c15-faa9aef0c3f2'] },
+        { services: ['49535343-fe7d-4ae5-8fa9-9fafd205e455'] },
+        { services: [0x18F0] },
+        { services: [0xFF00] },
+        { services: [0xFFE0] },
+        { namePrefix: 'MTP' },
+        { namePrefix: 'PT' },
+        { namePrefix: 'RP' },
+        { namePrefix: 'POS' },
+        { namePrefix: 'Printer' },
+        { namePrefix: 'Blue' },
+        { namePrefix: '58' },
+        { namePrefix: '80' },
+        { namePrefix: 'Inner' },
+        { namePrefix: 'XP' }
+      ],
       optionalServices: PRINTER_SERVICES
     });
     
@@ -725,24 +755,11 @@ async function printViaBluetooth(canvas) {
 }
 
 async function printReceipt() {
-  if (!state.running) { showToast('KAMERA BELUM AKTIF'); return; }
-  if (!video.videoWidth || !video.videoHeight) { showToast('VIDEO BELUM SIAP'); return; }
-
-  // Render canvas dari kamera (harus di sini, dari user gesture)
-  const tmp = document.createElement('canvas');
-  if (!renderToCanvas(tmp)) { showToast('TIDAK ADA DATA'); return; }
-
-  // Cek Bluetooth tersedia DAN halaman pakai HTTPS (Android wajib HTTPS untuk BT)
   const isHttps = location.protocol === 'https:' || location.hostname === 'localhost';
   if (navigator.bluetooth && isHttps) {
-    await printViaBluetooth(tmp);
+    await printViaBluetooth(lightboxCanvas);
   } else {
-    // Fallback: tampilkan di lightbox lalu window.print()
-    // Copy canvas ke lightboxCanvas untuk ditampilkan
-    lightboxCanvas.width  = tmp.width;
-    lightboxCanvas.height = tmp.height;
-    lightboxCanvas.getContext('2d').drawImage(tmp, 0, 0);
-    lightbox.removeAttribute('hidden');
+    // Fallback: karena sudah di lightbox, langsung panggil window.print()
     showToast('MEMPERSIAPKAN PRINT...');
     setTimeout(() => window.print(), 600);
   }
@@ -884,4 +901,35 @@ buildPool();
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 if (isMobile && btnSwitchCam) {
   btnSwitchCam.style.display = 'flex';
+}
+
+/* ── SETTINGS LOGIC ── */
+if (btnSettings) {
+  btnSettings.addEventListener('click', () => {
+    inpAuthor.value = appSettings.author;
+    inpContactLabel.value = appSettings.contactLabel;
+    inpContactValue.value = appSettings.contactValue;
+    inpDescription.value = appSettings.description;
+    settingsModal.removeAttribute('hidden');
+  });
+}
+if (settingsClose) {
+  settingsClose.addEventListener('click', () => settingsModal.setAttribute('hidden', ''));
+}
+if (settingsBg) {
+  settingsBg.addEventListener('click', () => settingsModal.setAttribute('hidden', ''));
+}
+if (btnSaveSettings) {
+  btnSaveSettings.addEventListener('click', () => {
+    appSettings.author = inpAuthor.value.trim() || 'by @djoardi';
+    appSettings.contactLabel = inpContactLabel.value.trim() || 'IG/WA';
+    appSettings.contactValue = inpContactValue.value.trim() || '+62 812 4678 2525';
+    appSettings.description = inpDescription.value.trim();
+    localStorage.setItem('ascii_author', appSettings.author);
+    localStorage.setItem('ascii_contact_label', appSettings.contactLabel);
+    localStorage.setItem('ascii_contact_value', appSettings.contactValue);
+    localStorage.setItem('ascii_description', appSettings.description);
+    settingsModal.setAttribute('hidden', '');
+    showToast('PENGATURAN DISIMPAN');
+  });
 }

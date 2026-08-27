@@ -536,3 +536,53 @@ video {
     image-rendering: pixelated;
   }
 }
+
+/* ── SETTINGS MODAL ── */
+.settings-box {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid #1A1A1A;
+  width: 90vw;
+  max-width: 320px;
+  align-items: stretch;
+}
+.settings-title {
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 16px;
+  letter-spacing: 0.05em;
+}
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+.settings-group label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: #666;
+}
+.settings-group input {
+  padding: 8px 12px;
+  border: 1px solid #1A1A1A;
+  border-radius: 8px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  background: transparent;
+  color: #1A1A1A;
+  outline: none;
+  transition: all 0.2s;
+}
+.settings-group input:focus {
+  border-width: 2px;
+  padding: 7px 11px;
+}
