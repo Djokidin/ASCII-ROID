@@ -28,24 +28,39 @@
     <div class="ascii-frame">
       <canvas id="bgVideoCanvas" class="bg-video"></canvas>
       <div id="asciiText" class="ascii-out"></div>
-      <div id="overlayMsg" class="overlay">
-        <div class="overlay-content">
-          <p class="overlay-title">ASCII-ROID</p>
-          <p class="overlay-hint">[ START ] kamera untuk memulai</p>
+      
+      <!-- ── HUD OVERLAY ── -->
+      <div id="hudOverlay" class="hud-overlay" style="display: none;">
+        <div class="hud-grid"></div>
+        <div class="hud-top-left">MEM: 16KB OK<br>SYS. FPS: <span id="hudFps">0</span></div>
+        <div class="hud-top-right"><span class="hud-rec">● REC</span></div>
+        <div class="hud-bottom-left">COORD: [<span id="hudCoord">0.0, 0.0</span>]</div>
+        <div class="hud-bottom-right">RES: [340x453]</div>
+        <div class="hud-crosshair">
+          <div class="cross-x"></div>
+          <div class="cross-y"></div>
+          <div class="cross-c"></div>
         </div>
+      </div>
+      
+      <div id="flashOverlay" class="flash-overlay"></div>
+    </div>
+    
+    <div id="overlayMsg" class="overlay">
+      <div class="overlay-content">
+        <p class="overlay-title">ASCII-ROID</p>
+        <p class="overlay-hint">[ START ] kamera untuk memulai</p>
       </div>
     </div>
   </main>
 
-  <!-- ── BOTTOM BAR ── -->
-  <footer class="bottombar">
-    <div class="ctrl-pill">
+  <footer class="bottombar" style="flex-direction: column; gap: 12px; background: transparent; pointer-events: none;">
+    <!-- Combined Pill -->
+    <div class="ctrl-pill" style="pointer-events: auto;">
       <div class="ctrl-row">
         <button id="btnCamera" class="btn-cam">[ START ]</button>
-        <button id="btnFlip" class="btn-mono" title="Mirror">⇄</button>
         <button id="btnSwitchCam" class="btn-mono" title="Switch Camera" style="display: none;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"></path>
             <path d="M4 15v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path>
             <circle cx="12" cy="12" r="3"></circle>
@@ -54,50 +69,32 @@
           </svg>
         </button>
         <div class="ctrl-sep"></div>
-        <label class="ctrl-label" for="selLang">LANG</label>
-        <select id="selLang" class="ctrl-select">
-          <option value="both">ID + EN</option>
-          <option value="id">ID</option>
-          <option value="en">EN</option>
-        </select>
-        <div class="ctrl-sep"></div>
+        
+        <button id="btnFlip" class="btn-mono btn-flip" title="Mirror">⇄</button>
         <button id="btnBgCam" class="btn-mono" title="Background Camera">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
             <circle cx="12" cy="12" r="3"></circle>
           </svg>
         </button>
         <button id="btnToggleText" class="btn-mono" title="Toggle Text">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="4 7 4 4 20 4 20 7"></polyline>
             <line x1="9" y1="20" x2="15" y2="20"></line>
             <line x1="12" y1="4" x2="12" y2="20"></line>
           </svg>
         </button>
         <button id="btnInvert" class="btn-mono" title="Invert ASCII">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M12 2a10 10 0 0 0 0 20z"></path>
           </svg>
         </button>
-        <div class="ctrl-sep"></div>
-        <button id="btnSnapshot" class="btn-mono" title="Snapshot">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
-            <circle cx="12" cy="13" r="3"></circle>
-          </svg>
-        </button>
-
+        
         <div class="ctrl-sep"></div>
         <button id="btnFullscreen" class="btn-mono" title="Fullscreen">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
-            </path>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
           </svg>
         </button>
         <button id="btnSettings" class="btn-mono" title="Settings">
@@ -109,6 +106,14 @@
       </div>
     </div>
   </footer>
+
+  <!-- ── FLOATING SNAPSHOT BUTTON ── -->
+  <button id="btnSnapshot" class="btn-snapshot-float" title="Snapshot">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+      <circle cx="12" cy="13" r="3"></circle>
+    </svg>
+  </button>
 
   <!-- ── SNAPSHOT LIGHTBOX ── -->
   <div id="lightbox" class="lightbox" hidden>
@@ -171,6 +176,14 @@
         <div class="settings-group">
           <label>DESKRIPSI</label>
           <input type="text" id="inpDescription" placeholder="Tambahan info..." />
+        </div>
+        <div class="settings-group" style="margin-top: 4px;">
+          <label>BAHASA KUTIPAN</label>
+          <select id="selLang" class="ctrl-select" style="width: 100%; font-size: 12px; padding: 8px 12px; border-radius: 8px;">
+            <option value="both">ID + EN</option>
+            <option value="id">Indonesia</option>
+            <option value="en">English</option>
+          </select>
         </div>
         <button id="btnSaveSettings" class="btn-cam" style="width: 100%; margin-top: 12px; background: #1A1A1A; color: #E9EBE2;">SIMPAN</button>
       </div>

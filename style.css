@@ -188,6 +188,14 @@ video {
   background: rgba(26, 26, 26, 0.05);
 }
 
+.btn-mono.active {
+  background: #1A1A1A;
+  color: #fff;
+}
+.btn-mono.active:hover {
+  opacity: 0.9;
+}
+
 /* Separator */
 .ctrl-sep {
   width: 1px;
@@ -279,6 +287,24 @@ video {
   background: transparent; /* Always transparent so we blend with frame/video */
   padding: 0;
   text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+.flash-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: white;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+.flash-overlay.active {
+  animation: flashAnim 0.4s ease-out forwards;
+}
+@keyframes flashAnim {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* Desktop: ukuran ASCII lebih besar */
@@ -585,4 +611,211 @@ video {
 .settings-group input:focus {
   border-width: 2px;
   padding: 7px 11px;
+}
+
+/* ── RESPONSIVE VISIBILITY ── */
+.desktop-only { display: flex; }
+.mobile-only { display: none; }
+
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+  .mobile-only { display: flex !important; }
+}
+
+/* ── FLOATING SNAPSHOT ── */
+.btn-snapshot-float {
+  position: fixed;
+  bottom: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 32px;
+  background: #1A1A1A;
+  color: #ffffff;
+  border: 4px solid #ffffff;
+  outline: 1px solid #1A1A1A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 110;
+  transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+  cursor: pointer;
+}
+.btn-snapshot-float:hover {
+  transform: translateX(-50%) scale(1.05);
+}
+.btn-snapshot-float:active {
+  transform: translateX(-50%) scale(0.95);
+  background: #ffffff;
+  color: #1A1A1A;
+}
+
+/* ── AUTO HIDE ── */
+.hidden-fade {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+}
+.ctrl-pill {
+  transition: all 0.3s ease;
+}
+
+/* ── CRT EFFECTS ── */
+@keyframes crtTurnOn {
+  0% {
+    transform: scale(1, 0.001);
+    filter: brightness(10);
+  }
+  40% {
+    transform: scale(1, 0.001);
+    filter: brightness(10);
+  }
+  100% {
+    transform: scale(1, 1);
+    filter: brightness(1);
+  }
+}
+.crt-on {
+  animation: crtTurnOn 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+@keyframes crtTurnOff {
+  0% {
+    transform: scale(1, 1);
+    filter: brightness(1);
+  }
+  60% {
+    transform: scale(1, 0.001);
+    filter: brightness(10);
+  }
+  100% {
+    transform: scale(0, 0.001);
+    filter: brightness(0);
+  }
+}
+.crt-off {
+  animation: crtTurnOff 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+/* ── SCANLINE EFFECT (Printing) ── */
+.scanning-overlay {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 15%;
+  background: linear-gradient(to bottom, rgba(26,26,26,0) 0%, rgba(26,26,26,0.3) 50%, rgba(26,26,26,0) 100%);
+  animation: scanline 1.5s linear infinite;
+  z-index: 200;
+  pointer-events: none;
+}
+@keyframes scanline {
+  0% { top: -20%; }
+  100% { top: 120%; }
+}
+
+/* ── GLITCH OVERLAY ── */
+@keyframes glitch-out {
+  0% { clip-path: inset(0 0 0 0); transform: translate(0); opacity: 1; visibility: visible; }
+  20% { clip-path: inset(80% 0 5% 0); transform: translate(10px, -10px); opacity: 0.8; }
+  40% { clip-path: inset(20% 0 60% 0); transform: translate(-10px, 10px); opacity: 0.6; }
+  60% { clip-path: inset(40% 0 40% 0); transform: translate(10px, 10px); opacity: 0.4; }
+  80% { clip-path: inset(10% 0 80% 0); transform: translate(-10px, -10px); opacity: 0.2; }
+  100% { clip-path: inset(0 0 0 0); transform: translate(0); opacity: 0; visibility: hidden; }
+}
+
+@keyframes glitch-in {
+  0% { clip-path: inset(10% 0 80% 0); transform: translate(-10px, -10px); opacity: 0; visibility: hidden; }
+  1% { visibility: visible; }
+  20% { clip-path: inset(40% 0 40% 0); transform: translate(10px, 10px); opacity: 0.2; }
+  40% { clip-path: inset(20% 0 60% 0); transform: translate(-10px, 10px); opacity: 0.4; }
+  60% { clip-path: inset(80% 0 5% 0); transform: translate(10px, -10px); opacity: 0.6; }
+  80% { clip-path: inset(0 0 0 0); transform: translate(0); opacity: 0.8; }
+  100% { clip-path: inset(0 0 0 0); transform: translate(0); opacity: 1; visibility: visible; }
+}
+
+.glitch-out {
+  animation: glitch-out 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+.glitch-in {
+  animation: glitch-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+/* ── HUD OVERLAY ── */
+.hud-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  font-family: 'Space Grotesk', monospace;
+  font-size: 10px;
+  color: #fff;
+  text-shadow: 
+    -1px -1px 0 #1A1A1A,  
+     1px -1px 0 #1A1A1A,
+    -1px  1px 0 #1A1A1A,
+     1px  1px 0 #1A1A1A;
+}
+.hud-top-left { position: absolute; top: 12px; left: 12px; line-height: 1.4; opacity: 0.9; }
+.hud-top-right { position: absolute; top: 12px; right: 12px; opacity: 0.9; }
+.hud-bottom-left { position: absolute; bottom: 12px; left: 12px; opacity: 0.9; }
+.hud-bottom-right { position: absolute; bottom: 12px; right: 12px; opacity: 0.9; }
+
+.hud-rec {
+  color: #ff3333;
+  text-shadow: none; /* Keep the red REC without black outline so it looks like an LED */
+  animation: recBlink 1s infinite;
+}
+@keyframes recBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* Grid & Crosshair */
+.hud-grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.hud-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 30px;
+  height: 30px;
+  opacity: 0.6;
+}
+.cross-x {
+  position: absolute;
+  top: 50%;
+  left: -20px;
+  width: calc(100% + 40px);
+  height: 1px;
+  background: #fff;
+  outline: 1px solid #1A1A1A;
+}
+.cross-y {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  width: 1px;
+  height: calc(100% + 40px);
+  background: #fff;
+  outline: 1px solid #1A1A1A;
+}
+.cross-c {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  outline: 1px solid #1A1A1A;
+  box-shadow: inset 0 0 0 1px #1A1A1A; /* For inner outline */
 }

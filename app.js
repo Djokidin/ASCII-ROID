@@ -50,7 +50,7 @@ const state = {
   FPS: 12,              // hardcoded
   mirrored: true,
   contrast: 3.0,        // max contrast, hardcoded
-  lang: 'both',
+  lang: localStorage.getItem('ascii_lang') || 'both',
   running: false,
   wordPool: [],
   wordIdx: 0,
@@ -64,7 +64,8 @@ const appSettings = {
   author: localStorage.getItem('ascii_author') || 'by @djoardi',
   contactLabel: localStorage.getItem('ascii_contact_label') || 'IG/WA',
   contactValue: localStorage.getItem('ascii_contact_value') || '+62 812 4678 2525',
-  description: localStorage.getItem('ascii_description') || ''
+  description: localStorage.getItem('ascii_description') || '',
+  lang: localStorage.getItem('ascii_lang') || 'both'
 };
 
 /* ── DOM ── */
@@ -83,7 +84,7 @@ const btnShare = document.getElementById('btnShare');
 const toast = document.getElementById('toast');
 
 const btnCamera = document.getElementById('btnCamera');
-const btnFlip = document.getElementById('btnFlip');
+const btnFlips = document.querySelectorAll('.btn-flip');
 const btnSwitchCam = document.getElementById('btnSwitchCam');
 const btnBgCam = document.getElementById('btnBgCam');
 const btnToggleText = document.getElementById('btnToggleText');
@@ -96,6 +97,12 @@ const btnPrint = document.getElementById('btnPrint');
 const btnFullscreen = document.getElementById('btnFullscreen');
 const asciiFrame = document.querySelector('.ascii-frame');
 const selLang = document.getElementById('selLang');
+
+const hudOverlay = document.getElementById('hudOverlay');
+const hudFps = document.getElementById('hudFps');
+const hudCoord = document.getElementById('hudCoord');
+let framesThisSec = 0;
+let lastFpsTime = Date.now();
 
 const btnSettings = document.getElementById('btnSettings');
 const settingsModal = document.getElementById('settingsModal');
@@ -116,7 +123,7 @@ function buildPool() {
   let pool = [];
   if (state.lang === 'id' || state.lang === 'both') pool = pool.concat(QUOTES_ID);
   if (state.lang === 'en' || state.lang === 'both') pool = pool.concat(QUOTES_EN);
-  
+
   // Create a continuous sentence separated by spaces, no shuffling, uppercase for receipt look
   sequentialText = pool.join(" ").toUpperCase() + " ";
 }
@@ -162,7 +169,21 @@ function renderFrame(ts) {
   const LINE_H = getLineH();
   const cols = Math.floor(frameW / CHAR_W);
   const rows = Math.floor(frameH / LINE_H);
-  
+
+  // HUD Update
+  const nowStr = Date.now();
+  framesThisSec++;
+  if (nowStr - lastFpsTime >= 1000) {
+    if (hudFps) hudFps.textContent = framesThisSec;
+    framesThisSec = 0;
+    lastFpsTime = nowStr;
+  }
+  if (hudCoord && Math.random() > 0.8) {
+    const cx = (Math.random() * 100).toFixed(1);
+    const cy = (Math.random() * 100).toFixed(1);
+    hudCoord.textContent = `${cx}, ${cy}`;
+  }
+
   // Calculate crop for object-fit: cover
   const frameAspect = frameW / frameH;
   let sx, sy, sw, sh;
@@ -200,28 +221,28 @@ function renderFrame(ts) {
     // Draw the camera to the canvas with high contrast before dithering
     bgVideoCtx.filter = `contrast(${state.contrast}) brightness(1.1)`;
     bgVideoCtx.drawImage(video, sx, sy, sw, sh, 0, 0, frameW, frameH);
-    
+
     // Apply Bayer Ordered Dithering (1-bit)
     const imgData = bgVideoCtx.getImageData(0, 0, frameW, frameH);
     const data = imgData.data;
     const bayer = [
-      [ 0,  8,  2, 10],
-      [12,  4, 14,  6],
-      [ 3, 11,  1,  9],
-      [15,  7, 13,  5]
+      [0, 8, 2, 10],
+      [12, 4, 14, 6],
+      [3, 11, 1, 9],
+      [15, 7, 13, 5]
     ];
     for (let y = 0; y < frameH; y++) {
       for (let x = 0; x < frameW; x++) {
         const i = (y * frameW + x) * 4;
-        const luma = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+        const luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
         const threshold = (bayer[y % 4][x % 4] / 16) * 255;
         const c = luma > threshold ? 255 : 0;
-        data[i] = data[i+1] = data[i+2] = c;
-        data[i+3] = 255;
+        data[i] = data[i + 1] = data[i + 2] = c;
+        data[i + 3] = 255;
       }
     }
     bgVideoCtx.putImageData(imgData, 0, 0);
-    
+
     bgVideoCtx.restore();
   }
 
@@ -307,11 +328,17 @@ async function startCamera() {
     }
 
     state.running = true;
-    cameraOff.classList.add('hidden');
-    overlayMsg.classList.add('hidden');
+    overlayMsg.classList.remove('glitch-in');
+    overlayMsg.classList.add('glitch-out');
+
     liveBadge.classList.add('visible');
     btnCamera.classList.add('active');
     btnCamera.textContent = '[ STOP ]';
+    if (asciiFrame) {
+      asciiFrame.classList.remove('crt-off');
+      asciiFrame.classList.add('crt-on');
+    }
+    if (hudOverlay) hudOverlay.style.display = 'block';
 
     buildPool();
     asciiText.style.display = 'block';
@@ -322,8 +349,8 @@ async function startCamera() {
   } catch (err) {
     console.error('Camera error:', err);
     let msg = 'TIDAK BISA AKSES KAMERA';
-    if (err.name === 'NotAllowedError')  msg = 'IZIN KAMERA DITOLAK';
-    if (err.name === 'NotFoundError')    msg = 'KAMERA TIDAK DITEMUKAN';
+    if (err.name === 'NotAllowedError') msg = 'IZIN KAMERA DITOLAK';
+    if (err.name === 'NotFoundError') msg = 'KAMERA TIDAK DITEMUKAN';
     if (err.name === 'NotReadableError') msg = 'KAMERA DIPAKAI APLIKASI LAIN';
     if (err.name === 'OverconstrainedError') msg = 'KAMERA TIDAK MENDUKUNG MODE INI';
     showToast(msg);
@@ -335,12 +362,21 @@ function stopCamera() {
   if (state.animId) { cancelAnimationFrame(state.animId); state.animId = null; }
   if (state.stream) { state.stream.getTracks().forEach(t => t.stop()); state.stream = null; }
   video.srcObject = null;
-  cameraOff.classList.remove('hidden');
-  overlayMsg.classList.remove('hidden');
+
+  overlayMsg.classList.remove('glitch-out');
+  overlayMsg.classList.add('glitch-in');
+
   liveBadge.classList.remove('visible');
   btnCamera.classList.remove('active');
   btnCamera.textContent = '[ START ]';
-  asciiText.textContent = '';
+  setTimeout(() => {
+    if (!state.running) asciiText.textContent = '';
+  }, 500);
+  if (asciiFrame) {
+    asciiFrame.classList.remove('crt-on');
+    asciiFrame.classList.add('crt-off');
+  }
+  if (hudOverlay) hudOverlay.style.display = 'none';
   showToast('KAMERA MATI');
 }
 
@@ -353,8 +389,8 @@ function stopCamera() {
 // Konstanta ekspor: gunakan font kecil (setara mobile) agar
 // paling banyak karakter → paling detail di semua platform.
 const EXPORT_FONT_SIZE = 10;   // px di canvas output
-const EXPORT_CHAR_W    = 4.0;  // VT323 advance-width pada 10px
-const EXPORT_LINE_H    = 10;   // = EXPORT_FONT_SIZE (line-height 1.0)
+const EXPORT_CHAR_W = 4.0;  // VT323 advance-width pada 10px
+const EXPORT_LINE_H = 10;   // = EXPORT_FONT_SIZE (line-height 1.0)
 
 /**
  * Re-render ulang frame kamera langsung ke canvas target
@@ -365,7 +401,7 @@ function renderToCanvas(target, format = 'story') {
   // Pastikan kamera aktif
   if (!state.running || !video.videoWidth || !video.videoHeight) return false;
 
-  const frameW = asciiFrame ? asciiFrame.offsetWidth  : 340;
+  const frameW = asciiFrame ? asciiFrame.offsetWidth : 340;
   const frameH = asciiFrame ? asciiFrame.offsetHeight : 453;
 
   // Jumlah kolom & baris berdasarkan ukuran frame LAYAR (bukan layar kecil/besar)
@@ -386,7 +422,7 @@ function renderToCanvas(target, format = 'story') {
   }
 
   const expCanvas = document.createElement('canvas');
-  expCanvas.width  = cols;
+  expCanvas.width = cols;
   expCanvas.height = rows;
   const expCtx = expCanvas.getContext('2d', { willReadFrequently: true });
 
@@ -400,7 +436,7 @@ function renderToCanvas(target, format = 'story') {
 
   // ── ASCII mapping (sama dengan renderFrame) ────────────
   const T_SPACE = 80;
-  const T_DOT   = 148;
+  const T_DOT = 148;
 
   if (!sequentialText) buildPool();
   let localIdx = 0;
@@ -409,9 +445,9 @@ function renderToCanvas(target, format = 'story') {
   for (let r = 0; r < rows; r++) {
     let line = '';
     for (let c = 0; c < cols; c++) {
-      const i    = (r * cols + c) * 4;
+      const i = (r * cols + c) * 4;
       const luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-      const m    = state.invertAscii ? luma : 255 - luma;
+      const m = state.invertAscii ? luma : 255 - luma;
       if (m < T_SPACE) {
         line += ' ';
       } else if (m < T_DOT) {
@@ -425,34 +461,34 @@ function renderToCanvas(target, format = 'story') {
   }
 
   // ── Dimensi canvas output ──────────────────────────────
-  const SCALE       = 3;   // 3× untuk ketajaman cetak
-  const FONT_SIZE   = EXPORT_FONT_SIZE;
-  const CHAR_W      = EXPORT_CHAR_W;
-  const LINE_H      = EXPORT_LINE_H;
+  const SCALE = 3;   // 3× untuk ketajaman cetak
+  const FONT_SIZE = EXPORT_FONT_SIZE;
+  const CHAR_W = EXPORT_CHAR_W;
+  const LINE_H = EXPORT_LINE_H;
 
-  const PADDING       = 20  * SCALE;
-  const INNER_PAD     = 16  * SCALE;
+  const PADDING = 20 * SCALE;
+  const INNER_PAD = 16 * SCALE;
   const FOOTER_HEIGHT = 280 * SCALE;
 
-  const cw     = Math.round(cols * CHAR_W  * SCALE);
-  const ch     = Math.round(rows * LINE_H  * SCALE);
+  const cw = Math.round(cols * CHAR_W * SCALE);
+  const ch = Math.round(rows * LINE_H * SCALE);
   const cw_box = cw + INNER_PAD * 2;
   const ch_box = ch + INNER_PAD * 2;
 
-  const contentWidth  = cw_box + PADDING * 2;
+  const contentWidth = cw_box + PADDING * 2;
   const contentHeight = ch_box + PADDING * 2 + FOOTER_HEIGHT;
 
-  let finalWidth  = contentWidth;
+  let finalWidth = contentWidth;
   let finalHeight = contentHeight;
-  let offsetY     = 0;
+  let offsetY = 0;
 
   if (format === 'story') {
     finalHeight = Math.round(finalWidth * (16 / 9));
-    offsetY     = Math.round((finalHeight - contentHeight) / 2);
+    offsetY = Math.round((finalHeight - contentHeight) / 2);
     if (offsetY < 0) { finalHeight = contentHeight; offsetY = 0; }
   }
 
-  target.width  = Math.max(finalWidth,  1);
+  target.width = Math.max(finalWidth, 1);
   target.height = Math.max(finalHeight, 1);
 
   const ctx = target.getContext('2d');
@@ -475,7 +511,7 @@ function renderToCanvas(target, format = 'story') {
 
   // Dotted border
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth   = 4 * SCALE;
+  ctx.lineWidth = 4 * SCALE;
   ctx.setLineDash([4 * SCALE, 6 * SCALE]);
   ctx.strokeRect(PADDING, PADDING, cw_box, ch_box);
   ctx.setLineDash([]);
@@ -483,8 +519,8 @@ function renderToCanvas(target, format = 'story') {
   // ASCII Text
   if (state.showText) {
     ctx.globalCompositeOperation = 'difference';
-    ctx.fillStyle    = '#ffffff';
-    ctx.font         = `${FONT_SIZE * SCALE}px 'VT323', monospace`;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `${FONT_SIZE * SCALE}px 'VT323', monospace`;
     ctx.textBaseline = 'top';
     lines.forEach((line, i) =>
       ctx.fillText(line, PADDING + INNER_PAD, PADDING + INNER_PAD + i * LINE_H * SCALE)
@@ -506,7 +542,7 @@ function renderToCanvas(target, format = 'story') {
     'WARNING: WILL FADE EVENTUALLY'
   ];
   const randomWord = words[Math.floor(Math.random() * words.length)];
-  const today      = new Date();
+  const today = new Date();
   const dateString = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
   ctx.fillText(randomWord, PADDING, footerY + 45 * SCALE, cw_box);
 
@@ -516,18 +552,18 @@ function renderToCanvas(target, format = 'story') {
   ctx.beginPath();
   ctx.setLineDash([4 * SCALE, 4 * SCALE]);
   ctx.lineWidth = 2 * SCALE;
-  ctx.moveTo(PADDING,          footerY + 115 * SCALE);
+  ctx.moveTo(PADDING, footerY + 115 * SCALE);
   ctx.lineTo(PADDING + cw_box, footerY + 115 * SCALE);
   ctx.stroke();
   ctx.setLineDash([]);
 
   ctx.font = `500 ${24 * SCALE}px 'Space Grotesk', sans-serif`;
-  const authorText  = appSettings.author;
+  const authorText = appSettings.author;
   const authorWidth = ctx.measureText(authorText).width;
   ctx.fillText(authorText, PADDING + cw_box - authorWidth, footerY + 160 * SCALE);
 
   ctx.fillText(appSettings.contactLabel, PADDING, footerY + 200 * SCALE);
-  const phoneText  = appSettings.contactValue;
+  const phoneText = appSettings.contactValue;
   const phoneWidth = ctx.measureText(phoneText).width;
   ctx.fillText(phoneText, PADDING + cw_box - phoneWidth, footerY + 200 * SCALE);
 
@@ -552,12 +588,22 @@ function takeSnapshot() {
   if (!state.running) { showToast('KAMERA BELUM AKTIF'); return; }
   if (!video.videoWidth || !video.videoHeight) { showToast('VIDEO BELUM SIAP'); return; }
 
+  // Animasi flash shutter
+  const flashOverlay = document.getElementById('flashOverlay');
+  if (flashOverlay) {
+    flashOverlay.classList.remove('active');
+    void flashOverlay.offsetWidth; // trigger reflow
+    flashOverlay.classList.add('active');
+  }
+
   // Jalankan langsung (synchronous dari user gesture — penting untuk Android)
   const ok = renderToCanvas(lightboxCanvas);
   if (!ok) { showToast('GAGAL MENGAMBIL SNAPSHOT'); return; }
 
-  lightbox.removeAttribute('hidden');
-  showToast('SNAPSHOT DIAMBIL');
+  setTimeout(() => {
+    lightbox.removeAttribute('hidden');
+    showToast('SNAPSHOT DIAMBIL');
+  }, 200);
 
   // Siapkan file share secara async
   currentShareFile = null;
@@ -573,7 +619,7 @@ function downloadCanvas(canvas) {
   try {
     const dataUrl = canvas.toDataURL('image/png');
     const a = document.createElement('a');
-    a.href     = dataUrl;
+    a.href = dataUrl;
     a.download = `ascii_roid_${Date.now()}.png`;
     document.body.appendChild(a);
     a.click();
@@ -598,51 +644,51 @@ function downloadCurrent() {
 function canvasToEscPos(canvas, printWidth = 384) {
   const ratio = printWidth / canvas.width;
   const printHeight = Math.round(canvas.height * ratio);
-  
+
   const tmp = document.createElement('canvas');
   tmp.width = printWidth;
   tmp.height = printHeight;
   const ctx = tmp.getContext('2d');
-  
+
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, printWidth, printHeight);
   ctx.imageSmoothingEnabled = false; // Nearest neighbor scaling to prevent anti-aliasing (no grays)
   ctx.drawImage(canvas, 0, 0, printWidth, printHeight);
-  
+
   const imgData = ctx.getImageData(0, 0, printWidth, printHeight);
   const pixels = imgData.data;
-  
+
   const lumaArray = new Float32Array(printWidth * printHeight);
   for (let i = 0; i < printWidth * printHeight; i++) {
-     const idx = i * 4;
-     const a = pixels[idx + 3] / 255;
-     const r = pixels[idx] * a + 255 * (1 - a);
-     const g = pixels[idx + 1] * a + 255 * (1 - a);
-     const b = pixels[idx + 2] * a + 255 * (1 - a);
-     lumaArray[i] = (r * 0.299 + g * 0.587 + b * 0.114);
+    const idx = i * 4;
+    const a = pixels[idx + 3] / 255;
+    const r = pixels[idx] * a + 255 * (1 - a);
+    const g = pixels[idx + 1] * a + 255 * (1 - a);
+    const b = pixels[idx + 2] * a + 255 * (1 - a);
+    lumaArray[i] = (r * 0.299 + g * 0.587 + b * 0.114);
   }
-  
+
   const widthInBytes = Math.ceil(printWidth / 8);
   const BAND_HEIGHT = 64; // Small chunks (3KB max) to prevent printer buffer overflow
   const numBands = Math.ceil(printHeight / BAND_HEIGHT);
-  
+
   const buffers = [];
-  
+
   // INIT PRINTER (Reset)
   buffers.push(new Uint8Array([0x1B, 0x40]));
-  
+
   for (let b = 0; b < numBands; b++) {
     const bandStartY = b * BAND_HEIGHT;
     const bandHeight = Math.min(BAND_HEIGHT, printHeight - bandStartY);
     const dataLen = widthInBytes * bandHeight;
-    
+
     const buffer = new Uint8Array(8 + dataLen);
     buffer.set([0x1D, 0x76, 0x30, 0x00], 0); // GS v 0
     buffer[4] = widthInBytes & 0xFF;
     buffer[5] = (widthInBytes >> 8) & 0xFF;
     buffer[6] = bandHeight & 0xFF;
     buffer[7] = (bandHeight >> 8) & 0xFF;
-    
+
     let offset = 8;
     for (let y = 0; y < bandHeight; y++) {
       const globalY = bandStartY + y;
@@ -651,9 +697,9 @@ function canvasToEscPos(canvas, printWidth = 384) {
         for (let bit = 0; bit < 8; bit++) {
           const x = xByte * 8 + bit;
           if (x < printWidth) {
-             if (lumaArray[globalY * printWidth + x] < 128) {
-               byte |= (1 << (7 - bit));
-             }
+            if (lumaArray[globalY * printWidth + x] < 128) {
+              byte |= (1 << (7 - bit));
+            }
           }
         }
         buffer[offset++] = byte;
@@ -661,7 +707,7 @@ function canvasToEscPos(canvas, printWidth = 384) {
     }
     buffers.push(buffer);
   }
-  
+
   // Cut or feed paper
   buffers.push(new Uint8Array([0x1B, 0x64, 0x03]));
   return buffers;
@@ -697,13 +743,13 @@ async function printViaBluetooth(canvas) {
       ],
       optionalServices: PRINTER_SERVICES
     });
-    
+
     showToast('MENGHUBUNGKAN PRINTER...');
     const server = await device.gatt.connect();
-    
+
     let writeChar = null;
     const services = await server.getPrimaryServices();
-    
+
     for (const service of services) {
       const characteristics = await service.getCharacteristics();
       for (const char of characteristics) {
@@ -714,38 +760,38 @@ async function printViaBluetooth(canvas) {
       }
       if (writeChar) break;
     }
-    
+
     if (!writeChar) {
       showToast('TIDAK DITEMUKAN LAYANAN PRINT');
       device.gatt.disconnect();
       return;
     }
-    
+
     showToast('MEMPROSES GAMBAR...');
     const bands = canvasToEscPos(canvas, 384);
-    
+
     showToast('MENCETAK...');
     const CHUNK_SIZE = 100;
-    
+
     for (let b = 0; b < bands.length; b++) {
       const buffer = bands[b];
       for (let i = 0; i < buffer.length; i += CHUNK_SIZE) {
         const chunk = buffer.slice(i, i + CHUNK_SIZE);
         if (writeChar.properties.write) {
-           await writeChar.writeValue(chunk);
-           await new Promise(r => setTimeout(r, 5)); 
+          await writeChar.writeValue(chunk);
+          await new Promise(r => setTimeout(r, 5));
         } else {
-           await writeChar.writeValueWithoutResponse(chunk);
-           await new Promise(r => setTimeout(r, 20)); 
+          await writeChar.writeValueWithoutResponse(chunk);
+          await new Promise(r => setTimeout(r, 20));
         }
       }
       // Give printer time to empty its buffer and physically print the band
-      await new Promise(r => setTimeout(r, 150)); 
+      await new Promise(r => setTimeout(r, 150));
     }
-    
+
     showToast('CETAK SELESAI');
     device.gatt.disconnect();
-    
+
   } catch (err) {
     console.error(err);
     if (err.name !== 'NotFoundError') {
@@ -756,12 +802,22 @@ async function printViaBluetooth(canvas) {
 
 async function printReceipt() {
   const isHttps = location.protocol === 'https:' || location.hostname === 'localhost';
-  if (navigator.bluetooth && isHttps) {
-    await printViaBluetooth(lightboxCanvas);
-  } else {
-    // Fallback: karena sudah di lightbox, langsung panggil window.print()
-    showToast('MEMPERSIAPKAN PRINT...');
-    setTimeout(() => window.print(), 600);
+  const printContainer = document.getElementById('printContainer');
+  const scanOverlay = document.createElement('div');
+  scanOverlay.className = 'scanning-overlay';
+  if (printContainer) printContainer.appendChild(scanOverlay);
+
+  try {
+    if (navigator.bluetooth && isHttps) {
+      await printViaBluetooth(lightboxCanvas);
+    } else {
+      // Fallback: karena sudah di lightbox, langsung panggil window.print()
+      showToast('MEMPERSIAPKAN PRINT...');
+      await new Promise(r => setTimeout(r, 600));
+      window.print();
+    }
+  } finally {
+    if (scanOverlay.parentNode) scanOverlay.remove();
   }
 }
 
@@ -793,9 +849,11 @@ if (btnSwitchCam) {
   });
 }
 
-btnFlip.addEventListener('click', () => {
-  state.mirrored = !state.mirrored;
-  showToast(state.mirrored ? 'MIRROR ON' : 'MIRROR OFF');
+btnFlips.forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.mirrored = !state.mirrored;
+    showToast(state.mirrored ? 'MIRROR ON' : 'MIRROR OFF');
+  });
 });
 
 btnBgCam.addEventListener('click', () => {
@@ -820,10 +878,7 @@ btnInvert.addEventListener('click', () => {
   showToast(state.invertAscii ? 'INVERT: ON' : 'INVERT: OFF');
 });
 
-selLang.addEventListener('change', () => {
-  state.lang = selLang.value;
-  buildPool();
-});
+
 
 btnSnapshot.addEventListener('click', takeSnapshot);
 btnDownload.addEventListener('click', downloadCurrent);
@@ -844,8 +899,8 @@ if (btnShare) {
       return;
     }
     if (!navigator.canShare({ files: [currentShareFile] })) {
-       showToast('BROWSER TIDAK MENDUKUNG SHARE GAMBAR');
-       return;
+      showToast('BROWSER TIDAK MENDUKUNG SHARE GAMBAR');
+      return;
     }
     try {
       await navigator.share({
@@ -896,6 +951,7 @@ if (btnFullscreen) {
 }
 
 /* ── INIT ── */
+if (selLang) selLang.value = state.lang;
 buildPool();
 
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -910,6 +966,7 @@ if (btnSettings) {
     inpContactLabel.value = appSettings.contactLabel;
     inpContactValue.value = appSettings.contactValue;
     inpDescription.value = appSettings.description;
+    if (selLang) selLang.value = appSettings.lang;
     settingsModal.removeAttribute('hidden');
   });
 }
@@ -925,10 +982,16 @@ if (btnSaveSettings) {
     appSettings.contactLabel = inpContactLabel.value.trim() || 'IG/WA';
     appSettings.contactValue = inpContactValue.value.trim() || '+62 812 4678 2525';
     appSettings.description = inpDescription.value.trim();
+    if (selLang) {
+      appSettings.lang = selLang.value;
+      state.lang = appSettings.lang;
+      buildPool();
+    }
     localStorage.setItem('ascii_author', appSettings.author);
     localStorage.setItem('ascii_contact_label', appSettings.contactLabel);
     localStorage.setItem('ascii_contact_value', appSettings.contactValue);
     localStorage.setItem('ascii_description', appSettings.description);
+    localStorage.setItem('ascii_lang', appSettings.lang);
     settingsModal.setAttribute('hidden', '');
     showToast('PENGATURAN DISIMPAN');
   });
